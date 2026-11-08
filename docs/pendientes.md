@@ -21,7 +21,7 @@ completo NO se versiona porque contiene valores de control de octubre.
 
 ## Para verificar en Supabase antes de ejecutar el SQL
 - Firma real de `tiene_sector` y `ve_sueldos` (el SQL 02 las supone).
-- Tipo real del id de persona en planificación (`planificacion_persona_id`).
+- (Resuelto) `planificacion_persona_id` es uuid, como `planificacion_valor_hora_hist.persona_id`.
 - Grupo/agrupador de 1100, 1102, 1500, 1550, 1600 (supuestos Haberes/SUELDO).
 
 ## Motor de cálculo (js/rrhh-calculo.js) — estado
@@ -42,3 +42,8 @@ completo NO se versiona porque contiene valores de control de octubre.
   los archivos de Novedades (no se subieron: el parser sigue los encabezados del handoff §3.2).
 - Hallazgo octubre: legajos 1000–1003 aparecen en la liquidación OC y no en el padrón.
 - Cada archivo es una transacción propia: si falla el tercero, los dos primeros quedan cargados (reimportar es seguro).
+
+## Verificado en Supabase (consultas del usuario)
+- `tiene_sector(s sector_portal)`: el parámetro es de tipo `sector_portal`, no `text`. Falta confirmar que `'rrhh'` sea un valor válido.
+- `ve_sueldos` NO existe como función en `public`. Falta saber dónde vive esa bandera (¿`perfiles_sector.permisos`?).
+  Hasta resolverlo NO ejecutar `02_rrhh_rls.sql`: crearía funciones que fallan.

@@ -24,9 +24,9 @@ create table if not exists public.rrhh_empleados (
   tipo_pago     text check (tipo_pago in ('jornalizado','mensualizado')),
   sede          text,
   activo        boolean not null default true,
-  -- Estoy suponiendo el tipo: no conozco el tipo real del id de persona en
-  -- planificacion_*. Verificarlo y ajustarlo antes de usar el vínculo.
-  planificacion_persona_id text
+  -- uuid: es el tipo de planificacion_valor_hora_hist.persona_id (verificado en Supabase).
+  -- Sin FK: no conozco el nombre de la tabla de personas de planificación.
+  planificacion_persona_id uuid
 );
 
 create table if not exists public.rrhh_conceptos (
