@@ -36,7 +36,7 @@ values
  (40000,'4H','No Remunerativo',null,'excluir',false,null,null,null),
  (40001,'4H','No Remunerativo',null,'excluir',false,null,null,null),
  (40002,'4H','No Remunerativo',null,'excluir',false,null,null,null),
- (55041,'4H_OC',null,null,'excluir',false,null,null,null),
+ (55041,'4H_OC','No Remunerativo',null,'excluir',false,null,null,null),
  (80000,'4H','Contribuciones','CONTRIBUCIONES','costo',false,null,null,'cargas'),
  (80010,'4H','Contribuciones','CONTRIBUCIONES','costo',false,null,null,'cargas'),
  (80020,'4H','Contribuciones','CONTRIBUCIONES','costo',false,null,null,'cargas'),
@@ -46,17 +46,56 @@ values
  (80100,'4H','Contribuciones','CONTRIBUCIONES','costo',false,null,null,'cargas'),
  (80200,'4H','Contribuciones','CONTRIBUCIONES','costo',false,null,null,'cargas'),
  (80300,'4H','Contribuciones','SEGURO SINDICAL','costo',false,null,null,'fijo_mensual'),
- (55013,'4H_OC',null,'COPAR','costo',false,null,null,'directo'),  -- Sábado Taller
- (55014,'4H_OC',null,'COPAR','costo',false,null,null,'directo'),  -- Horas extra OC
- (99999,'4H',null,'SUELDO','costo',false,null,null,null),
- (99999,'4H_OC',null,'COPAR','costo',false,null,null,null),
- (55015,'4H_OC',null,'SUELDO','directo_proyecto',false,null,null,null),
- (55016,'4H_OC',null,'SUELDO','directo_proyecto',false,null,null,null),
- (55025,'4H_OC',null,'SUELDO','directo_proyecto',false,null,null,null),
- (55020,'4H_OC',null,null,null,false,null,null,null),  -- posventa: A DEFINIR
- (55029,'4H_OC',null,null,null,false,null,null,null),  -- posventa: A DEFINIR
- (55035,'4H_OC',null,'RRHH','cuenta_rrhh',false,null,null,null),
- (55300,'4H_OC',null,'RRHH','cuenta_rrhh',false,null,null,null),
- (55302,'4H_OC',null,'RRHH','cuenta_rrhh',false,null,null,null)
+ (55013,'4H_OC','No Remunerativo','COPAR','costo',false,null,null,'directo'),  -- Sábado Taller
+ (55014,'4H_OC','No Remunerativo','COPAR','costo',false,null,null,'directo'),  -- Horas extra OC
+ (99999,'4H','No Remunerativo','SUELDO','costo',false,null,null,null),
+ (99999,'4H_OC','No Remunerativo','COPAR','costo',false,null,null,null),
+ (55015,'4H_OC','No Remunerativo','SUELDO','directo_proyecto',false,null,null,null),
+ (55016,'4H_OC','No Remunerativo','SUELDO','directo_proyecto',false,null,null,null),
+ (55025,'4H_OC','No Remunerativo','SUELDO','directo_proyecto',false,null,null,null),
+ (55020,'4H_OC','No Remunerativo',null,null,false,null,null,null),  -- posventa: A DEFINIR
+ (55029,'4H_OC','No Remunerativo',null,null,false,null,null,null),  -- posventa: A DEFINIR
+ (55035,'4H_OC','No Remunerativo','RRHH','cuenta_rrhh',false,null,null,null),
+ (55300,'4H_OC','No Remunerativo','RRHH','cuenta_rrhh',false,null,null,null),
+ (55302,'4H_OC','No Remunerativo','RRHH','cuenta_rrhh',false,null,null,null)
 on conflict (nro_concepto, empresa) do update set prorrateo = excluded.prorrateo
   where public.rrhh_conceptos.prorrateo is null;
+
+-- ----------------------------------------------------------------------------
+-- Conceptos observados en los informes de octubre 2026 (empresa confirmada por
+-- el informe donde aparecen). Solo número/grupo/tratamiento; descripciones
+-- pendientes de cargar desde la hoja Conceptos.
+-- ESTOY SUPONIENDO el tratamiento de lo que el handoff no nombra:
+--   6000, 6001, 8000 (Haberes -> costo); 41012, 41014 (41xxx -> costo, fijo_mensual);
+--   retenciones 20xxx/29xxx/90000 (rango APORTES -> retencion);
+--   55000, 55010, 55011 (coparticipación), 55050, 55051 (comisiones),
+--   55303, 55304 (adicionales) -> costo, agrupador COPAR.
+-- 55301 y 55305 NO figuran en el handoff: quedan con trata NULL (A DEFINIR).
+-- 1602 y 6501 siguen SIN catalogar a propósito (la app debe frenar el cierre).
+-- ----------------------------------------------------------------------------
+insert into public.rrhh_conceptos
+  (nro_concepto, empresa, grupo_sistema, agrupador, trata, es_hora, hora_productiva, tipo_hora, prorrateo)
+values
+ (6000,'4H','Haberes','SUELDO','costo',false,null,null,null),
+ (6001,'4H','Haberes','SUELDO','costo',false,null,null,null),
+ (8000,'4H','Haberes','SUELDO','costo',false,null,null,null),
+ (41012,'4H','No Remunerativo','SUELDO','costo',false,null,null,'fijo_mensual'),
+ (41014,'4H','No Remunerativo','SUELDO','costo',false,null,null,'fijo_mensual'),
+ (20000,'4H','Retenciones','APORTES','retencion',false,null,null,null),
+ (20010,'4H','Retenciones','APORTES','retencion',false,null,null,null),
+ (20030,'4H','Retenciones','APORTES','retencion',false,null,null,null),
+ (20300,'4H','Retenciones','APORTES','retencion',false,null,null,null),
+ (20350,'4H','Retenciones','APORTES','retencion',false,null,null,null),
+ (29800,'4H','Retenciones','APORTES','retencion',false,null,null,null),
+ (29810,'4H','Retenciones','APORTES','retencion',false,null,null,null),
+ (90000,'4H','Retenciones','APORTES','retencion',false,null,null,null),
+ (55000,'4H_OC','No Remunerativo','COPAR','costo',false,null,null,'fijo_mensual'),
+ (55010,'4H_OC','No Remunerativo','COPAR','costo',false,null,null,'fijo_mensual'),
+ (55011,'4H_OC','No Remunerativo','COPAR','costo',false,null,null,'fijo_mensual'),
+ (55050,'4H_OC','No Remunerativo','COPAR','costo',false,null,null,null),
+ (55051,'4H_OC','No Remunerativo','COPAR','costo',false,null,null,null),
+ (55303,'4H_OC','No Remunerativo','COPAR','costo',false,null,null,null),
+ (55304,'4H_OC','No Remunerativo','COPAR','costo',false,null,null,null),
+ (55301,'4H_OC','No Remunerativo',null,null,false,null,null,null),
+ (55305,'4H_OC','No Remunerativo',null,null,false,null,null,null)
+on conflict (nro_concepto, empresa) do nothing;

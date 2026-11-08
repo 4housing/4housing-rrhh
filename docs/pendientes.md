@@ -23,3 +23,11 @@ completo NO se versiona porque contiene valores de control de octubre.
 - Firma real de `tiene_sector` y `ve_sueldos` (el SQL 02 las supone).
 - Tipo real del id de persona en planificación (`planificacion_persona_id`).
 - Grupo/agrupador de 1100, 1102, 1500, 1550, 1600 (supuestos Haberes/SUELDO).
+
+## Motor de cálculo (js/rrhh-calculo.js) — estado
+- Tests sintéticos: `node --test test/calculo.test.js` (no usar `node --test test/`, falla en Node 22).
+- Verificado en local contra los informes reales de octubre (sin subir nada): neto, cargas,
+  costo, bono montaje y combo reproducen los valores de control del handoff.
+- Control de horas §7.1: la referencia "horas de la liquidación" queda como parámetro;
+  falta confirmar de dónde sale (en el Excel es la fila "Acreditación de Haberes").
+- Octubre vs F.931: la diferencia de contribuciones S.S. sigue sin explicar (se revisa con contadora).
