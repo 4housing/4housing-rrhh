@@ -1,22 +1,41 @@
 -- ============================================================================
 -- RRHH · Etapa 1 · RLS
--- ESTOY SUPONIENDO (verificar antes de ejecutar):
---   * existe public.tiene_sector(text) returns boolean
---   * existe public.ve_sueldos() returns boolean
--- Ninguna de las dos me fue mostrada; si la firma real es otra, ajustar solo
--- las dos funciones helper de abajo y el resto sigue igual.
+-- Verificado en Supabase:
+--   * public.tiene_sector(s sector_portal) existe y 'rrhh' es un valor válido del tipo.
+--   * ve_sueldos NO es una función: es una clave booleana dentro de
+--     perfiles_sector.permisos (ej.: {"ve_sueldos": true}). Hoy solo la usan filas
+--     de planificación y ninguna política de la base la consulta.
+-- Acá se aplica en la base (RLS): sin la bandera no se leen ni se importan importes.
+-- ESTOY SUPONIENDO que dirección ve sueldos sin necesitar la bandera (igual que
+-- tiene_sector deja pasar a es_direccion()). Para exigir la bandera también a
+-- dirección: borrar la línea "public.es_direccion() or" de rrhh_ve_sueldos().
+-- Para dar acceso a otra persona: en su fila de perfiles_sector con sector 'rrhh',
+-- permisos = {"ve_sueldos": true}.
 -- Nunca se otorga nada a anon.
 -- ============================================================================
 
+create or replace function public.rrhh_ve_sueldos() returns boolean
+language sql stable security invoker set search_path = public as $$
+  select public.es_direccion() or exists (
+    select 1 from public.perfiles_sector ps
+    where ps.perfil_id = auth.uid()
+      and ps.sector = 'rrhh'
+      and coalesce((ps.permisos->>'ve_sueldos')::boolean, false)
+  )
+$$;
+
 create or replace function public.rrhh_puede() returns boolean
-language sql stable security invoker as $$
+language sql stable security invoker set search_path = public as $$
   select public.tiene_sector('rrhh')
 $$;
 
 create or replace function public.rrhh_puede_importes() returns boolean
-language sql stable security invoker as $$
-  select public.tiene_sector('rrhh') and public.ve_sueldos()
+language sql stable security invoker set search_path = public as $$
+  select public.tiene_sector('rrhh') and public.rrhh_ve_sueldos()
 $$;
+
+revoke all on function public.rrhh_ve_sueldos(), public.rrhh_puede(), public.rrhh_puede_importes() from public, anon;
+grant execute on function public.rrhh_ve_sueldos(), public.rrhh_puede(), public.rrhh_puede_importes() to authenticated;
 
 -- Tablas sin importes: basta el sector.
 alter table public.rrhh_periodos  enable row level security;

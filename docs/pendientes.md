@@ -44,6 +44,17 @@ completo NO se versiona porque contiene valores de control de octubre.
 - Cada archivo es una transacción propia: si falla el tercero, los dos primeros quedan cargados (reimportar es seguro).
 
 ## Verificado en Supabase (consultas del usuario)
-- `tiene_sector(s sector_portal)`: el parámetro es de tipo `sector_portal`, no `text`. Falta confirmar que `'rrhh'` sea un valor válido.
-- `ve_sueldos` NO existe como función en `public`. Falta saber dónde vive esa bandera (¿`perfiles_sector.permisos`?).
-  Hasta resolverlo NO ejecutar `02_rrhh_rls.sql`: crearía funciones que fallan.
+- `tiene_sector(s sector_portal)`: `'rrhh'` es un valor válido del tipo. El cuerpo se vio cortado
+  ("select public.es_direccion() or exists (select 1 from public.perfiles p join public…").
+- `ve_sueldos` NO es una función: es una clave booleana en `perfiles_sector.permisos`
+  (ej. `{"ve_sueldos": true}`), hoy solo en filas de planificación. Ninguna política de la base la consulta
+  (en planificación se aplica en la app). En RRHH se aplica en la base (`rrhh_ve_sueldos()` en `sql/02`).
+- `perfiles`: id, email, nombre, activo, es_direccion, creado_en, actualizado_en.
+
+## Acceso a importes de RRHH (sql/02) — a confirmar
+- Estoy suponiendo que dirección ve sueldos sin la bandera (como `tiene_sector` deja pasar a dirección).
+  Para exigir la bandera también a dirección: quitar `public.es_direccion() or` en `rrhh_ve_sueldos()`.
+- Otras personas: en su fila de `perfiles_sector` con sector `rrhh`, `permisos = {"ve_sueldos": true}`.
+- Probado en Postgres local con tablas/enum reproducidos y el cuerpo de `tiene_sector` SUPUESTO:
+  dirección y rrhh+bandera importan; rrhh sin bandera o con `false` lee el catálogo pero no importa;
+  una bandera de otro sector (planificación) no da acceso; anon no accede.
