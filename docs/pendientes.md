@@ -58,3 +58,15 @@ completo NO se versiona porque contiene valores de control de octubre.
 - Probado en Postgres local con tablas/enum reproducidos y el cuerpo de `tiene_sector` SUPUESTO:
   dirección y rrhh+bandera importan; rrhh sin bandera o con `false` lee el catálogo pero no importa;
   una bandera de otro sector (planificación) no da acceso; anon no accede.
+
+## Reglas de las otras apps (leídas de portal, planificacion-taller y adminfin)
+- Visual: paleta oliva, Archivo/Quicksand, sidebar oscuro (#2f3a26) a la izquierda, topbar blanca, cards.
+  Copiado de 4housing-adminfin; si allá cambia, cambiar acá. Aplicado a RRHH en este cambio.
+- Permisos por sección: cada app publica sus secciones en `SECCIONES` de `portal/admin.html` (ver/editar en
+  `perfiles_sector.permisos`) y en la base con funciones `<app>_puede_ver(seccion)` / `_puede_editar(seccion)`
+  (ver `sql/2026-10_adminfin_secciones.sql` en adminfin). `SENSIBLE_DEFAULT` oculta por defecto las secciones sensibles.
+- RRHH todavía NO está en `SECCIONES` del portal. Hoy RRHH usa la bandera `ve_sueldos` + sector.
+  DECISIÓN PENDIENTE: pasar al modelo de secciones del portal.
+- Prefijo `rrhh_`: no figura en la lista de prefijos de los CLAUDE.md de portal y planificación (sí está
+  `rrhh` en el enum y en `SECTORES` del portal). Conviene que Pablo lo confirme.
+- Falta un `CLAUDE.md` en este repo, como tienen los demás.
