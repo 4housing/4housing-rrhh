@@ -45,6 +45,20 @@
   .notice{background:var(--warn-soft);border:1px solid var(--warn);border-radius:8px;padding:1rem 1.2rem;font-size:.9rem;max-width:560px;margin:6vh auto 0;}
   .notice code{font-family:var(--mono);font-size:.83em;}
   .msg{color:var(--ink-soft);font-size:.9rem;padding:2rem 0;text-align:center;}
+  .panel{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:1.3rem 1.4rem;margin-bottom:1.2rem;}
+  .panel h2{font-size:1.02rem;margin-bottom:.3rem;}
+  .panel .sub{color:var(--ink-soft);font-size:.85rem;margin-bottom:1rem;}
+  .fila{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:.4rem 1rem;align-items:start;padding:.65rem 0;border-top:1px solid var(--line);}
+  .fila:first-of-type{border-top:none;}
+  .fila label{font-weight:600;font-size:.9rem;}
+  .est{font-size:.82rem;color:var(--ink-soft);margin-top:.25rem;}
+  .est.ok{color:var(--ok);} .est.mal{color:#b3261e;} .est.av{color:var(--warn);}
+  .lista{font-size:.85rem;margin:.4rem 0 0 1.1rem;}
+  .alerta{background:var(--warn-soft);border:1px solid var(--warn);border-radius:8px;padding:.8rem 1rem;font-size:.87rem;margin-top:.8rem;}
+  input[type=month],input[type=file]{font:inherit;color:var(--ink);max-width:100%;}
+  input[type=month]{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:.4rem .6rem;}
+  button:disabled{opacity:.5;cursor:not-allowed;}
+  @media (max-width:600px){.fila{grid-template-columns:1fr;}}
 </style>
 </head>
 <body>
@@ -57,6 +71,10 @@
 </div>
 
 <script src="/portal/nav.js" defer></script>
+<!-- Lector de Excel (SheetJS). Versión fijada; sin SRI porque no pude verificar el hash. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="js/rrhh-calculo.js"></script>
+<script src="js/rrhh-importador.js"></script>
 <script>
 /* ==========================================================================
    Recursos Humanos — esqueleto vacío, mismo shell de acceso que el portal.
@@ -122,12 +140,149 @@ function vistaApp(perfil, cargo){
   $hdr.hidden = false;
   document.getElementById('who-nombre').innerHTML =
     '<b>' + esc(perfil.nombre || perfil.email) + '</b>' + (cargo ? ' · ' + esc(cargo) : '');
+  vistaImportar();
+}
+
+/* ---------------------------- Importación mensual ---------------------------- */
+const ARCHIVOS = [
+  { id:'res4h',  etiqueta:'Resumen de conceptos liquidados · 4H',    tipo:'resumen',   empresa:'4H' },
+  { id:'resoc',  etiqueta:'Resumen de conceptos liquidados · 4H OC', tipo:'resumen',   empresa:'4H_OC' },
+  { id:'nov4h',  etiqueta:'Novedades registradas · 4H',              tipo:'novedades', empresa:'4H' },
+  { id:'novoc',  etiqueta:'Novedades registradas · 4H OC',           tipo:'novedades', empresa:'4H_OC' },
+  { id:'padron', etiqueta:'Legajos (padrón)',                        tipo:'padron',    empresa:null },
+];
+const cargados = {};   // id -> { nombre, res } | { nombre, error }
+let catalogo = null;   // rrhh_conceptos, se pide una vez
+
+function periodoAnterior(){
+  const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+
+async function leerExcel(file, tipo){
+  if (!window.XLSX) throw new Error('No se cargó la librería para leer Excel. Revisá la conexión y recargá.');
+  const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });   // sin cellDates: las fechas llegan como número exacto
+  for (const n of wb.SheetNames){
+    const m = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null });
+    if (RRHHImportador.pareceInforme(m, tipo)) return m;
+  }
+  throw new Error('No encontré ninguna hoja con el formato de este informe.');
+}
+
+function vistaImportar(){
   $main.innerHTML = `
-    <div class="card">
-      <h2>Recursos Humanos</h2>
-      <p>Esta app todavía no tiene funcionalidad — es el esqueleto de acceso, comparte login y permisos con el resto del portal.</p>
-      <p class="fine">Sector: <code>rrhh</code></p>
+    <div class="panel">
+      <h2>Importar informes del mes</h2>
+      <p class="sub">Los archivos se leen en tu navegador. Solo se envían legajo, concepto, importes y horas:
+        el C.U.I.L., teléfono y correo nunca salen de tu equipo. Reimportar un informe reemplaza el anterior del mismo período.</p>
+      <div class="fila"><label for="periodo">Período</label>
+        <div><input type="month" id="periodo" value="${periodoAnterior()}"></div></div>
+      ${ARCHIVOS.map(a => `
+        <div class="fila"><label for="f-${a.id}">${esc(a.etiqueta)}</label>
+          <div><input type="file" id="f-${a.id}" accept=".xlsx,.xls" data-id="${a.id}">
+          <div class="est" id="est-${a.id}">Sin cargar</div></div></div>`).join('')}
+    </div>
+    <div class="panel" id="controles"></div>
+    <div class="panel">
+      <button class="btn-primary" id="btn-importar" disabled>Importar</button>
+      <div id="resultado" class="est" role="status"></div>
     </div>`;
+  document.querySelectorAll('input[type=file]').forEach(i => i.addEventListener('change', alElegir));
+  document.getElementById('periodo').addEventListener('change', pintarControles);
+  document.getElementById('btn-importar').addEventListener('click', importar);
+  pintarControles();
+}
+
+async function alElegir(ev){
+  const a = ARCHIVOS.find(x => x.id === ev.target.dataset.id);
+  const $est = document.getElementById('est-' + a.id);
+  const file = ev.target.files[0];
+  delete cargados[a.id];
+  if (!file){ $est.className = 'est'; $est.textContent = 'Sin cargar'; pintarControles(); return; }
+  $est.className = 'est'; $est.textContent = 'Leyendo…';
+  try {
+    const m = await leerExcel(file, a.tipo);
+    const R = RRHHImportador;
+    const res = a.tipo === 'resumen' ? R.parseResumen(m) : a.tipo === 'novedades' ? R.parseNovedades(m) : R.parsePadron(m);
+    cargados[a.id] = { nombre: file.name, res };
+    const partes = [res.filas.length + ' filas'];
+    if (res.periodo) partes.push('período ' + res.periodo);
+    let html = esc(partes.join(' · '));
+    if (res.errores.length) html += '<ul class="lista">' + res.errores.slice(0, 8).map(e => '<li>' + esc(e) + '</li>').join('') +
+      (res.errores.length > 8 ? '<li>… y ' + (res.errores.length - 8) + ' más</li>' : '') + '</ul>';
+    if (res.advertencias.length) html += '<ul class="lista">' + res.advertencias.slice(0, 5).map(e => '<li>' + esc(e) + '</li>').join('') + '</ul>';
+    $est.className = 'est ' + (res.errores.length ? 'mal' : res.advertencias.length ? 'av' : 'ok');
+    $est.innerHTML = html;
+  } catch (e) {
+    cargados[a.id] = { nombre: file.name, error: e.message };
+    $est.className = 'est mal'; $est.textContent = e.message;
+  }
+  pintarControles();
+}
+
+function listos(){
+  return ARCHIVOS.filter(a => cargados[a.id] && cargados[a.id].res && !cargados[a.id].res.errores.length);
+}
+
+async function pintarControles(){
+  const $c = document.getElementById('controles'); if (!$c) return;
+  const periodo = document.getElementById('periodo').value;
+  const L = listos(), msgs = [];
+  const informes = L.filter(a => a.tipo !== 'padron').map(a => ({ empresa: a.empresa, tipo: a.tipo, periodo: cargados[a.id].res.periodo }));
+  const dist = informes.filter(i => i.periodo !== periodo);
+  if (dist.length) msgs.push(['mal', 'Hay informes cuyo período no es ' + periodo + ': ' + dist.map(i => i.empresa + ' ' + i.tipo + ' (' + i.periodo + ')').join(', ') + '. No se pueden importar así.']);
+  const falta = RRHHCalculo.controlPeriodo(informes).faltan;
+  if (falta.length) msgs.push(['av', 'Todavía faltan para poder cerrar el período: ' + falta.join(', ') + '.']);
+
+  const resumenes = L.filter(a => a.tipo === 'resumen');
+  if (resumenes.length){
+    if (!catalogo){
+      const { data, error } = await sb.from('rrhh_conceptos').select('*');
+      if (error) msgs.push(['mal', 'No pude leer el catálogo de conceptos: ' + error.message]); else catalogo = data;
+    }
+    if (catalogo){
+      const filas = resumenes.flatMap(a => cargados[a.id].res.filas.map(f => ({ ...f, empresa: a.empresa })));
+      const al = RRHHCalculo.calcularPeriodo(filas, catalogo).alertas;
+      const fmt = x => x.empresa + ':' + x.nro_concepto;
+      if (al.sinCatalogar.length) msgs.push(['mal', 'Conceptos sin catalogar (bloquean el cierre): ' + al.sinCatalogar.map(fmt).join(', ') + '.']);
+      if (al.sinTrata.length) msgs.push(['mal', 'Conceptos sin tratamiento definido (bloquean el cierre): ' + al.sinTrata.map(fmt).join(', ') + '.']);
+      if (al.trataNoSoportada.length) msgs.push(['mal', 'Conceptos con tratamiento no soportado: ' + al.trataNoSoportada.map(fmt).join(', ') + '.']);
+      const pad = cargados.padron && cargados.padron.res && !cargados.padron.res.errores.length ? cargados.padron.res.filas : null;
+      if (pad){
+        const sp = RRHHImportador.legajosSinPadron(filas, pad);
+        if (sp.length) msgs.push(['av', 'Legajos liquidados que no están en el padrón cargado: ' + sp.join(', ') + '.']);
+      }
+    }
+  }
+  $c.innerHTML = '<h2>Controles previos</h2>' + (msgs.length
+    ? msgs.map(([k, t]) => '<div class="est ' + k + '">' + esc(t) + '</div>').join('')
+    : '<div class="est ok">' + (L.length ? 'Sin alertas.' : 'Cargá al menos un archivo.') + '</div>');
+  const sePuede = L.length && !dist.length;
+  document.getElementById('btn-importar').disabled = !sePuede;
+}
+
+async function importar(){
+  const periodo = document.getElementById('periodo').value;
+  const $r = document.getElementById('resultado'), $b = document.getElementById('btn-importar');
+  const L = listos();
+  if (!/^\d{4}-\d{2}$/.test(periodo)){ $r.className = 'est mal'; $r.textContent = 'Elegí el período.'; return; }
+  const { data: previos, error: e0 } = await sb.from('rrhh_lotes').select('empresa,tipo').eq('periodo', periodo);
+  if (e0){ $r.className = 'est mal'; $r.textContent = 'No pude consultar lotes existentes: ' + e0.message; return; }
+  const pisa = L.filter(a => a.tipo !== 'padron' && (previos || []).some(p => p.empresa === a.empresa && p.tipo === a.tipo));
+  if (pisa.length && !confirm('Ya hay datos cargados de ' + periodo + ' para: ' + pisa.map(a => a.etiqueta).join('; ') + '.\n\nSe van a REEMPLAZAR completos. ¿Continuar?')) return;
+  $b.disabled = true; $r.className = 'est'; $r.innerHTML = '';
+  const lineas = [];
+  for (const a of L){
+    const res = cargados[a.id].res;
+    const { data, error } = a.tipo === 'padron'
+      ? await sb.rpc('rrhh_importar_padron', { p_empleados: res.filas })
+      : await sb.rpc('rrhh_importar_lote', { p_periodo: periodo, p_empresa: a.empresa, p_tipo: a.tipo, p_filas: res.filas });
+    lineas.push(error ? ['mal', a.etiqueta + ': ERROR · ' + error.message] : ['ok', a.etiqueta + ': ' + res.filas.length + ' filas importadas']);
+    $r.innerHTML = lineas.map(([k, t]) => '<div class="est ' + k + '">' + esc(t) + '</div>').join('');
+    if (error) break;   // cada archivo es una transacción propia; reimportar es seguro
+  }
+  if (lineas.some(l => l[0] === 'mal')) $r.insertAdjacentHTML('beforeend', '<div class="est av">Los archivos anteriores a este error ya quedaron cargados. Corregí y volvé a importar: reemplaza lo anterior.</div>');
+  catalogo = null; $b.disabled = false;
 }
 
 async function salir(){
