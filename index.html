@@ -32,6 +32,7 @@ a{color:var(--olive-deep);}
 .side .brand-sub{color:#9fb08c;font-size:11px;font-weight:600;padding:0 6px 14px;letter-spacing:.02em;}
 .nav-group-lbl{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#7e8a6c;font-weight:700;padding:14px 13px 5px;}
 .navbtn{display:flex;align-items:center;gap:9px;background:none;border:none;color:#cdd6bf;padding:9px 12px;border-radius:9px;font-size:13px;font-weight:600;text-align:left;letter-spacing:.01em;transition:.15s;width:100%;}
+.navbtn[hidden]{display:none;}
 .navbtn svg{width:17px;height:17px;flex:none;}
 .navbtn:hover{background:rgba(255,255,255,.07);color:#fff;}
 .navbtn.active{background:var(--olive);color:var(--olive-ink);}
@@ -175,9 +176,32 @@ function vistaSinSector(perfil){
     'Cerrar sesión', salir);
 }
 
-function vistaApp(perfil, cargo){
+// Permisos por sección (pantalla Usuarios del portal → perfiles_sector.permisos, SECCIONES.rrhh de portal/admin.html).
+// Mismo criterio que la base (rrhh_puede_ver / rrhh_puede_editar): dirección = todo; SIN lista guardada NO se ve nada
+// (son sueldos: el valor por defecto es negar). Solo visión (lector) nunca edita. La base es la que manda; esto solo evita
+// mostrar pantallas que después no se podrían usar.
+const RRHH_SECCIONES = ['liquidacion', 'costos', 'config'];
+const VISTA_SECCION = { importar: 'liquidacion' };
+const PERM = { ver: new Set(), editar: new Set() };
+function permisosRrhh(perfil, fila){
+  if (perfil.es_direccion) { RRHH_SECCIONES.forEach(x => { PERM.ver.add(x); PERM.editar.add(x); }); return; }
+  const pm = (fila && fila.permisos) || {}, cargo = String((fila && fila.cargo) || '').toLowerCase();
+  const ver = Array.isArray(pm.ver) ? pm.ver : [];
+  const editar = ['lector', 'lectura'].includes(cargo) ? [] : Array.isArray(pm.editar) ? pm.editar : [];
+  ver.forEach(x => PERM.ver.add(x));
+  editar.filter(x => PERM.ver.has(x)).forEach(x => PERM.editar.add(x));
+}
+
+function vistaApp(perfil, cargo, fila){
   $gate.hidden = true; $app.hidden = false;
   document.getElementById('who-nombre').textContent = (perfil.nombre || perfil.email || '') + (cargo ? ' · ' + cargo : '');
+  permisosRrhh(perfil, fila);
+  document.querySelectorAll('#nav .navbtn').forEach(b => { b.hidden = !PERM.ver.has(VISTA_SECCION[b.dataset.vista]); });
+  if (!PERM.ver.has('liquidacion')) {
+    pantallaAcceso('Tu usuario (<b>' + esc(perfil.nombre || perfil.email) + '</b>) tiene acceso a Recursos Humanos pero ninguna sección habilitada.<br><span style="font-size:12px;color:var(--muted)">Pedile a dirección que te tilde las secciones en la pantalla de Usuarios del portal.</span>',
+      'Cerrar sesión', salir);
+    return;
+  }
   irVista('importar');
 }
 
@@ -275,6 +299,11 @@ async function alElegir(ev){
   pintarControles();
 }
 
+// En la base, el lote de la liquidación se llama 'liquidacion' (en pantalla: 'resumen').
+const tipoLote = a => (a.tipo === 'resumen' ? 'liquidacion' : a.tipo);
+// Cargar informes exige EDITAR «liquidacion»; el padrón exige EDITAR «config».
+const puedeImportar = a => PERM.editar.has(a.tipo === 'padron' ? 'config' : 'liquidacion');
+
 function listos(){
   return ARCHIVOS.filter(a => cargados[a.id] && cargados[a.id].res && !cargados[a.id].res.errores.length);
 }
@@ -309,29 +338,34 @@ async function pintarControles(){
       }
     }
   }
+  const sinPermiso = L.filter(a => !puedeImportar(a));
+  if (sinPermiso.length) msgs.push(['mal', 'No tenés permiso de edición para importar: ' + sinPermiso.map(a => a.etiqueta).join('; ') + ' (se necesita Editar en «' + (sinPermiso.some(a => a.tipo === 'padron') ? 'Configuración' : 'Liquidación') + '»). Pedíselo a dirección en el portal.']);
   $c.innerHTML = (msgs.length
     ? msgs.map(([k, t]) => '<div class="est ' + k + '">' + esc(t) + '</div>').join('')
     : '<div class="est ok">' + (L.length ? 'Sin alertas.' : 'Cargá al menos un archivo.') + '</div>');
-  const sePuede = L.length && !dist.length;
+  const sePuede = L.filter(puedeImportar).length && !dist.length;
   document.getElementById('btn-importar').disabled = !sePuede;
 }
 
 async function importar(){
   const periodo = document.getElementById('periodo').value;
   const $r = document.getElementById('resultado'), $b = document.getElementById('btn-importar');
-  const L = listos();
+  const L = listos().filter(puedeImportar);
   if (!/^\d{4}-\d{2}$/.test(periodo)){ $r.className = 'est mal'; $r.textContent = 'Elegí el período.'; return; }
   const { data: previos, error: e0 } = await sb.from('rrhh_lotes').select('empresa,tipo').eq('periodo', periodo);
   if (e0){ $r.className = 'est mal'; $r.textContent = 'No pude consultar lotes existentes: ' + e0.message; return; }
-  const pisa = L.filter(a => a.tipo !== 'padron' && (previos || []).some(p => p.empresa === a.empresa && p.tipo === a.tipo));
+  const pisa = L.filter(a => a.tipo !== 'padron' && (previos || []).some(p => p.empresa === a.empresa && p.tipo === tipoLote(a)));
   if (pisa.length && !confirm('Ya hay datos cargados de ' + periodo + ' para: ' + pisa.map(a => a.etiqueta).join('; ') + '.\n\nSe van a REEMPLAZAR completos. ¿Continuar?')) return;
   $b.disabled = true; $r.className = 'est'; $r.innerHTML = '';
   const lineas = [];
   for (const a of L){
     const res = cargados[a.id].res;
-    const { data, error } = a.tipo === 'padron'
-      ? await sb.rpc('rrhh_importar_padron', { p_empleados: res.filas })
-      : await sb.rpc('rrhh_importar_lote', { p_periodo: periodo, p_empresa: a.empresa, p_tipo: a.tipo, p_filas: res.filas });
+    // Esquema oficial: la liquidación y las novedades entran por funciones que reemplazan el lote completo en una transacción;
+    // el padrón se guarda en rrhh_empleados (solo legajo, nombre y departamento: no pisa tipo de pago, sede ni vínculo).
+    const { error } = a.tipo === 'padron'
+      ? await sb.from('rrhh_empleados').upsert(res.filas, { onConflict: 'legajo' })
+      : await sb.rpc(a.tipo === 'resumen' ? 'rrhh_importar_liquidacion' : 'rrhh_importar_novedades',
+                     { p_periodo: periodo, p_empresa: a.empresa, p_archivo: cargados[a.id].nombre, p_filas: res.filas });
     lineas.push(error ? ['mal', a.etiqueta + ': ERROR · ' + error.message] : ['ok', a.etiqueta + ': ' + res.filas.length + ' filas importadas']);
     $r.innerHTML = lineas.map(([k, t]) => '<div class="est ' + k + '">' + esc(t) + '</div>').join('');
     if (error) break;   // cada archivo es una transacción propia; reimportar es seguro
@@ -367,7 +401,7 @@ async function iniciar(){
   const propio = (sectores || []).find(s => s.sector === SECTOR);
   if (!perfil.es_direccion && !propio) { vistaSinSector(perfil); return; }
 
-  vistaApp(perfil, perfil.es_direccion ? 'dirección' : (propio && propio.cargo));
+  vistaApp(perfil, perfil.es_direccion ? 'dirección' : (propio && propio.cargo), propio);
 }
 
 iniciar();

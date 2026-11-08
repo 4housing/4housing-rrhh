@@ -26,6 +26,16 @@
     return { idx, faltan };
   }
 
+  /** Columnas OPCIONALES: devuelve solo las que existen (campo -> índice). */
+  function columnasOpc(encabezado, opcionales) {
+    const h = encabezado.map(norm), idx = {};
+    for (const [campo, alternativas] of Object.entries(opcionales)) {
+      const i = h.findIndex(x => alternativas.some(a => x === a || x.startsWith(a + ' ')));
+      if (i >= 0) idx[campo] = i;
+    }
+    return idx;
+  }
+
   /** ¿La primera fila parece el encabezado de este tipo de informe? (para elegir la hoja) */
   function pareceInforme(matriz, tipo) {
     if (!matriz || !matriz.length) return false;
@@ -52,6 +62,11 @@
     if (m) return m[1] + '-' + m[2] + '-' + m[3];
     m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(s);
     if (m) return m[3] + '-' + p2(m[2]) + '-' + p2(m[1]);
+    // Períodos sin día (así vienen algunos meses del histórico): 'AAAA-MM' y 'MM/AAAA' -> primer día del mes
+    m = /^(\d{4})-(\d{2})$/.exec(s);
+    if (m && +m[2] >= 1 && +m[2] <= 12) return m[1] + '-' + m[2] + '-01';
+    m = /^(\d{1,2})\/(\d{4})$/.exec(s);
+    if (m && +m[1] >= 1 && +m[1] <= 12) return m[2] + '-' + p2(m[1]) + '-01';
     return null;
   }
 
@@ -83,6 +98,8 @@
       cantidad: ['cantidad liquidada'], valor: ['valor liquidado'],
     });
     if (faltan.length) { out.errores.push('Faltan columnas: ' + faltan.join(', ')); return out; }
+    // Descripción y grupo del concepto: no son datos personales; el esquema oficial los guarda en cada fila.
+    const opc = columnasOpc(matriz[0], { descripcion: ['desc de concepto'], grupo: ['grupo de concepto'] });
     const periodos = [];
     for (let i = 1; i < matriz.length; i++) {
       const r = matriz[i];
@@ -100,7 +117,10 @@
       if (!per) mal.push('período');
       if (mal.length) { if (out.errores.length < MAX_ERRORES) out.errores.push('Fila ' + (i + 1) + ': dato inválido en ' + mal.join(', ')); continue; }
       periodos.push(per.slice(0, 7));
-      out.filas.push({ legajo, tipo_liquidacion: tipo, nro_concepto: nro, importe: importe ?? 0, cantidad, valor });
+      out.filas.push({ legajo, tipo_liquidacion: tipo, nro_concepto: nro,
+                       descripcion: opc.descripcion != null ? texto(r[opc.descripcion]) : null,
+                       grupo: opc.grupo != null ? texto(r[opc.grupo]) : null,
+                       importe: importe ?? 0, cantidad, valor });
     }
     return cerrarPeriodo(out, periodos, 'Período liquidado');
   }
@@ -113,6 +133,7 @@
       cantidad: ['cantidad'], expresion: ['expresion'], valor: ['valor'], origen: ['origen'],
     });
     if (faltan.length) { out.errores.push('Faltan columnas: ' + faltan.join(', ')); return out; }
+    const opc = columnasOpc(matriz[0], { departamento: ['departamento'] });
     const periodos = [];
     for (let i = 1; i < matriz.length; i++) {
       const r = matriz[i];
@@ -129,7 +150,8 @@
       if (mal.length) { if (out.errores.length < MAX_ERRORES) out.errores.push('Fila ' + (i + 1) + ': dato inválido en ' + mal.join(', ')); continue; }
       periodos.push(fecha.slice(0, 7));
       out.filas.push({ fecha, legajo, cod_novedad: cod, novedad: texto(r[idx.novedad]), cantidad,
-                       expresion: texto(r[idx.expresion]), valor, origen: texto(r[idx.origen]) });
+                       expresion: texto(r[idx.expresion]), valor, origen: texto(r[idx.origen]),
+                       departamento: opc.departamento != null ? texto(r[opc.departamento]) : null });
     }
     return cerrarPeriodo(out, periodos, 'Fecha');
   }
