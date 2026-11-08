@@ -31,3 +31,14 @@ completo NO se versiona porque contiene valores de control de octubre.
 - Control de horas §7.1: la referencia "horas de la liquidación" queda como parámetro;
   falta confirmar de dónde sale (en el Excel es la fila "Acreditación de Haberes").
 - Octubre vs F.931: la diferencia de contribuciones S.S. sigue sin explicar (se revisa con contadora).
+
+## Importador (etapa 2) — estado
+- `sql/04_rrhh_importacion.sql`: funciones transaccionales `rrhh_importar_lote` y `rrhh_importar_padron`.
+  Probadas en un Postgres 16 local con `tiene_sector`/`ve_sueldos` SIMULADAS (no las reales): idempotencia,
+  atomicidad ante error, período cerrado, RLS, anon sin acceso, padrón conserva tipo_pago/sede.
+- `js/rrhh-importador.js` + pantalla en `index.html`. Probado en Chromium con los informes reales de octubre
+  y un Supabase simulado (1148 + 127 filas + 47 legajos, sin CUIL/correo en lo enviado).
+- NO verificado: URL de SheetJS en cdnjs (la versión 0.18.5 sí existe en npm); las funciones reales en Supabase;
+  los archivos de Novedades (no se subieron: el parser sigue los encabezados del handoff §3.2).
+- Hallazgo octubre: legajos 1000–1003 aparecen en la liquidación OC y no en el padrón.
+- Cada archivo es una transacción propia: si falla el tercero, los dos primeros quedan cargados (reimportar es seguro).
