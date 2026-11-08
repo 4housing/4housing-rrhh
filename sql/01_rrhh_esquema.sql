@@ -45,6 +45,10 @@ create table if not exists public.rrhh_conceptos (
   es_hora        boolean not null default false,
   hora_productiva boolean,   -- solo si es_hora
   tipo_hora      text,       -- p.ej. jornalizada, extra_50, vacaciones... (texto libre por ahora)
+  -- Handoff §9.1: cómo reparte el motor de cierre cada concepto entre tipos de hora.
+  -- NULL = sin definir. Los fijos mensuales dependen de la decisión 7b (i vs ii).
+  prorrateo      text check (prorrateo in
+                   ('directo','por_horas_pagas','por_pago_tipo','fijo_mensual','cargas')),
   primary key (nro_concepto, empresa)
 );
 
@@ -105,3 +109,8 @@ create table if not exists public.rrhh_f931 (
   aportes_os       numeric(14,2),
   empleados        integer
 );
+
+-- Si rrhh_conceptos ya se había creado con la versión anterior de este archivo:
+alter table public.rrhh_conceptos
+  add column if not exists prorrateo text
+  check (prorrateo in ('directo','por_horas_pagas','por_pago_tipo','fijo_mensual','cargas'));
