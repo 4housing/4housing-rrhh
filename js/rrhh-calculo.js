@@ -18,6 +18,8 @@
 
   const TRATA_VALIDAS = ['costo', 'excluir', 'directo_proyecto', 'cuenta_rrhh', 'retencion'];
   const GRUPOS = ['Haberes', 'Retenciones', 'Contribuciones', 'No Remunerativo'];
+  // tipo_hora productivos (catálogo oficial: trabajada, extra50; el provisorio usaba extra_50 y extra_50_mensualizado)
+  const HORAS_PRODUCTIVAS = ['trabajada', 'jornalizada', 'extra50', 'extra_50', 'extra_50_mensualizado'];
 
   /** Date | 'AAAA-MM-DD' | 'AAAA-MM' -> 'AAAA-MM' (o null). */
   function periodoDe(v) {
@@ -88,7 +90,9 @@
           const tipo = c.tipo_hora || 'sin_tipo';
           a.horasPorTipo[tipo] = (a.horasPorTipo[tipo] || 0) + h;
           a.horasPagas += h;
-          if (c.hora_productiva) a.horasProductivas += h;
+          // El catálogo oficial no trae 'hora_productiva': se deduce del tipo de hora (trabajada y extra 50%).
+          const productiva = c.hora_productiva != null ? !!c.hora_productiva : HORAS_PRODUCTIVAS.includes(c.tipo_hora);
+          if (productiva) a.horasProductivas += h;
         }
       } else { // 4H_OC: se decide solo por trata
         if (c.trata === 'costo') {

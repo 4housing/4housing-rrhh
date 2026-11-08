@@ -100,6 +100,17 @@ test('§6: horas por tipo, valor hora de producción y por hora paga', () => {
   assert.equal(C.controlHoras(r, 125).ok, false);
 });
 
+test('catálogo oficial (sin hora_productiva): se deduce del tipo de hora', () => {
+  const cat4 = [
+    cat(1, '4H', { grupo_sistema: 'Haberes', trata: 'costo', es_hora: true, tipo_hora: 'trabajada' }),
+    cat(2, '4H', { grupo_sistema: 'Haberes', trata: 'costo', es_hora: true, tipo_hora: 'extra50' }),
+    cat(3, '4H', { grupo_sistema: 'Haberes', trata: 'costo', es_hora: true, tipo_hora: 'vacaciones' }),
+  ];
+  const r = C.calcularPeriodo([f('4H', 1, 1, 100, { cantidad: 8 }), f('4H', 1, 2, 30, { cantidad: 2 }), f('4H', 1, 3, 50, { cantidad: 4 })], cat4).legajos[1];
+  assert.equal(r.horasProductivas, 10);
+  assert.equal(r.horasPagas, 14);
+});
+
 test('cero horas productivas: valor hora de producción no existe (null), no Infinity', () => {
   const r = C.calcularPeriodo([f('4H', 1, 2, 500, { cantidad: 40 })], CATALOGO).legajos[1];
   assert.equal(r.valorHoraProduccion, null);

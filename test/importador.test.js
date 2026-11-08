@@ -14,7 +14,8 @@ test('resumen: mapea columnas por encabezado y descarta datos personales', () =>
   const r = I.parseResumen([H_RES, res(1, 'Mensual', '2026-10-01', 1000, 100.5, 8, 12.5)]);
   assert.deepEqual(r.errores, []);
   assert.equal(r.periodo, '2026-10');
-  assert.deepEqual(r.filas, [{ legajo: 1, tipo_liquidacion: 'Mensual', nro_concepto: 1000, importe: 100.5, cantidad: 8, valor: 12.5 }]);
+  assert.deepEqual(r.filas, [{ legajo: 1, tipo_liquidacion: 'Mensual', nro_concepto: 1000, descripcion: 'desc', grupo: 'Haberes',
+                               importe: 100.5, cantidad: 8, valor: 12.5 }]);
   const claves = Object.keys(r.filas[0]).join(',');
   assert.ok(!/cuil|nombre|apellido|telefono|correo/i.test(claves));
 });
@@ -74,6 +75,31 @@ test('novedades: fecha, código y cantidad; sin CUIL ni nombre', () => {
   assert.equal(r.filas[0].cod_novedad, 'HSTRA');
   assert.ok(!('cuil' in r.filas[0]) && !('nombre' in r.filas[0]));
   assert.equal(r.filas[1].valor, null);
+  assert.equal(r.filas[0].departamento, 'D');
+});
+
+test('resumen: descripción y grupo se limpian (espacios sobrantes) y son opcionales', () => {
+  const fila = res(1, 'Mensual', '2026-10-01', 20000, -5, null, null); fila[8] = '  Jubilación '; fila[9] = 'Retenciones';
+  const r = I.parseResumen([H_RES, fila]);
+  assert.equal(r.filas[0].descripcion, 'Jubilación');
+  assert.equal(r.filas[0].grupo, 'Retenciones');
+  const sinOpc = I.parseResumen([H_RES.filter((_, i) => i !== 8 && i !== 9), res(1, 'Mensual', '2026-10-01', 1, 1, 0, 0).filter((_, i) => i !== 8 && i !== 9)]);
+  assert.deepEqual(sinOpc.errores, []);
+  assert.equal(sinOpc.filas[0].descripcion, null);
+  assert.equal(sinOpc.filas[0].grupo, null);
+});
+
+test('períodos del histórico: «05/2026», «2026-08», fecha completa y dd/mm/aaaa', () => {
+  const casos = [['05/2026', '2026-05'], ['5/2026', '2026-05'], ['2026-08', '2026-08'], ['2026-08-01', '2026-08'],
+                 ['01/10/2026', '2026-10'], [new Date(2026, 5, 1), '2026-06'], [serial(2026, 7, 1), '2026-07']];
+  for (const [entrada, esperado] of casos) {
+    const r = I.parseResumen([H_RES, res(1, 'Mensual', entrada, 1000, 1, 0, 0)]);
+    assert.deepEqual(r.errores, [], String(entrada));
+    assert.equal(r.periodo, esperado, String(entrada));
+  }
+  for (const malo of ['13/2026', '2026-13', 'octubre', '2026']) {
+    assert.equal(I.aFechaISO(malo), null, malo);
+  }
 });
 
 test('padrón: solo legajo, nombre y departamento; ignora teléfono, CUIL y correo', () => {
