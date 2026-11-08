@@ -12,6 +12,8 @@
 -- Para dar acceso a otra persona: en su fila de perfiles_sector con sector 'rrhh',
 -- permisos = {"ve_sueldos": true}.
 -- Nunca se otorga nada a anon.
+-- ⚠ REEMPLAZADO por sql/05_rrhh_secciones.sql (permisos por sección del portal). Si ya corriste el 05,
+--   NO vuelvas a correr este archivo: recrearía las políticas anteriores y, como se suman (OR), ampliaría el acceso.
 -- ============================================================================
 
 create or replace function public.rrhh_ve_sueldos() returns boolean
