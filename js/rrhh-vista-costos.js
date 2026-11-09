@@ -53,7 +53,7 @@
   }
 
   async function montar(ctx) {
-    const { sb, $main, esc, PERM, XLSX, Informe, titulo } = ctx;
+    const { sb, $main, esc, PERM, XLSX, Informe, Tabla, titulo } = ctx;
     titulo('Costo por empleado', 'Cuánto cuesta cada persona a la empresa y cuánto cobra en el bolsillo, mes por mes');
     if (!PERM.ver.has('costos') || !PERM.ver.has('liquidacion')) {
       $main.innerHTML = '<div class="empty">Para ver el costo por empleado hace falta permiso de <b>Ver</b> en «Costos» y en «Liquidación». Pedíselo a dirección en el portal.</div>';
@@ -83,6 +83,7 @@
       </div>
       <div id="cs-alertas"></div>
       <div id="cs-tabla"><div class="empty">Cargando…</div></div>
+      <p class="nota">Los importes se muestran sin centavos; en el detalle de cada persona y en el Excel exportado van completos. «Cobra en el bolsillo» = neto del recibo + todo lo liquidado por OC (incluye bono y descuentos, p. ej. Combo Hogar). «Cuesta» no incluye el Combo Hogar (va a la cuenta de RRHH) y sí incluye Aguinaldo y Bajas, que se muestran aparte y no entran al valor hora. Podés ordenar con un clic en el título, filtrar con ▾ (varios valores a la vez) y ajustar el ancho arrastrando el borde de la columna.</p>
       <div id="cs-modal"></div>`;
     const $ = id => document.getElementById(id);
     $('cs-periodo').value = est.periodo;
@@ -116,31 +117,26 @@
         && (!t || String(f.legajo).includes(t) || (f.nombre || '').toLowerCase().includes(t)));
     }
 
-    function celda(f, [k, , , tipo]) {
-      const v = f[k];
-      if (tipo === 'txt') return '<td class="' + (k === 'legajo' ? 'c1' : k === 'nombre' ? 'c2 izq' : 'izq') + '">' + esc(v == null ? (k === 'nombre' ? '(sin padrón)' : '') : v) + '</td>';
-      const txt = tipo === 'p' ? pct(v) : num(v, false);
-      return '<td class="' + (tipo !== 'p' && v < 0 ? 'neg' : '') + '">' + txt + '</td>';
-    }
-
-    function pintarTabla() {
-      const rows = filtradas(), tot = Informe.totalizar(rows);
-      const grupos = []; COLS.forEach(c => { const g = grupos[grupos.length - 1]; if (g && g.t === c[2]) g.n++; else grupos.push({ t: c[2], n: 1 }); });
-      const head1 = grupos.map(g => '<th class="g" colspan="' + g.n + '">' + esc(g.t) + '</th>').join('');
-      const head2 = COLS.map(c => '<th class="' + (c[0] === 'legajo' ? 'c1' : c[0] === 'nombre' ? 'c2 izq' : c[3] === 'txt' ? 'izq' : '') + '">' + esc(c[1]) + '</th>').join('');
-      const body = rows.map(f => '<tr data-legajo="' + f.legajo + '">' + COLS.map(c => celda(f, c)).join('') + '</tr>').join('');
-      const foot = COLS.map(c => {
-        if (c[0] === 'legajo') return '<td class="c1"></td>';
-        if (c[0] === 'nombre') return '<td class="c2 izq">TOTAL · ' + tot.personas + ' persona' + (tot.personas === 1 ? '' : 's') + '</td>';
-        if (c[3] === 'txt') return '<td></td>';
+    // Tabla estándar (ordenar, filtrar con selección múltiple, ajustar anchos): ver rrhh-tabla.js
+    const columnas = COLS.map(([k, tit, grupo, tipo]) => {
+      const c = { k, titulo: tit, grupo, tipo };
+      if (k === 'legajo') { c.sticky = true; c.cls = 'izq'; c.min = 70; }
+      else if (k === 'nombre') { c.sticky = true; c.cls = 'izq'; c.min = 190; c.texto = f => (f.nombre == null ? '(sin padrón)' : f.nombre); c.valor = c.texto; }
+      else if (tipo === 'txt') c.cls = 'izq';
+      if (tipo === 'p') c.texto = f => pct(f[k]);
+      else if (tipo === 'n' || tipo === 'h') c.texto = f => num(f[k], false);
+      return c;
+    });
+    const grid = Tabla.crear({
+      el: $('cs-tabla'), id: 'costos', columnas, esc, filaAttrs: f => 'data-legajo="' + f.legajo + '"',
+      pie: rows => { const tot = Informe.totalizar(rows); return COLS.map(c => {
+        if (c[0] === 'legajo') return '';
+        if (c[0] === 'nombre') return 'TOTAL · ' + tot.personas + ' persona' + (tot.personas === 1 ? '' : 's');
+        if (c[3] === 'txt') return '';
         const v = c[0] === 'valorHoraTrabajada' ? null : tot[c[0]];
-        return '<td>' + (c[3] === 'p' ? pct(v) : num(v, false)) + '</td>';
-      }).join('');
-      $('cs-tabla').innerHTML = rows.length
-        ? '<div class="tblwrap"><table class="tbl"><thead><tr>' + head1 + '</tr><tr class="h2">' + head2 + '</tr></thead><tbody>' + body + '</tbody><tfoot><tr>' + foot + '</tr></tfoot></table></div>'
-          + '<p class="nota">Los importes se muestran sin centavos; en el detalle de cada persona y en el Excel exportado van completos. «Cobra en el bolsillo» = neto del recibo + todo lo liquidado por OC (incluye bono y descuentos, p. ej. Combo Hogar). «Cuesta» no incluye el Combo Hogar (va a la cuenta de RRHH) y sí incluye Aguinaldo y Bajas, que se muestran aparte y no entran al valor hora.</p>'
-        : '<div class="empty">No hay personas que coincidan con el filtro.</div>';
-    }
+        return c[3] === 'p' ? pct(v) : num(v, false); }); },
+    });
+    function pintarTabla() { grid.render(filtradas()); }
 
     function abrirDetalle(legajo) {
       const f = est.informe.filas.find(x => x.legajo === legajo); if (!f) return;
@@ -175,7 +171,7 @@
     }
 
     function exportar() {
-      const rows = filtradas(), tot = Informe.totalizar(rows);
+      const rows = grid.filtradas(), tot = Informe.totalizar(rows);      // respeta los filtros y el orden de la tabla
       const aoa = [COLS.map(c => (c[2] ? c[2] + ' · ' : '') + c[1])];
       rows.forEach(f => aoa.push(COLS.map(c => (f[c[0]] == null ? '' : f[c[0]]))));
       aoa.push(COLS.map((c, i) => (i === 1 ? 'TOTAL' : c[3] === 'txt' || c[0] === 'valorHoraTrabajada' ? '' : (tot[c[0]] == null ? '' : tot[c[0]]))));

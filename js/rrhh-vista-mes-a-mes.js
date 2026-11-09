@@ -29,7 +29,7 @@
   }
 
   async function montar(ctx) {
-    const { sb, $main, esc, PERM, XLSX, Informe, MesAMes, titulo } = ctx;
+    const { sb, $main, esc, PERM, XLSX, Informe, MesAMes, Tabla, titulo } = ctx;
     titulo('Costo por mes', 'Cada persona mes a mes, con el total del período elegido');
     if (!PERM.ver.has('costos') || !PERM.ver.has('liquidacion')) {
       $main.innerHTML = '<div class="empty">Para ver el costo por mes hace falta permiso de <b>Ver</b> en «Costos» y en «Liquidación». Pedíselo a dirección en el portal.</div>';
@@ -60,7 +60,8 @@
         <button class="btn" id="mm-export" type="button">Exportar a Excel</button>
       </div>
       <div id="mm-alertas"></div>
-      <div id="mm-tabla"><div class="empty">Cargando…</div></div>`;
+      <div id="mm-tabla"><div class="empty">Cargando…</div></div>
+      <p class="nota" id="mm-nota"></p>`;
     const $ = id => document.getElementById(id);
     $('mm-desde').value = est.desde; $('mm-hasta').value = est.hasta;
 
@@ -90,35 +91,51 @@
       $('mm-alertas').innerHTML = msgs.length ? '<div class="alertas">' + msgs.map(([k, t]) => '<div class="est ' + k + '">' + esc(t) + '</div>').join('') + '</div>' : '';
     }
 
-    const calcular = () => MesAMes.matriz(est.informes, est.lista, { medida: est.medida, porDepto: est.porDepto, depto: est.depto, texto: est.texto });
+    const calcular = () => MesAMes.matriz(est.informes, est.lista, { medida: est.medida, porDepto: false, depto: est.depto, texto: est.texto });
     const marca = p => ((periodos.find(x => x.periodo === p) || {}).oc_completo === false ? '*' : '');
+    const sinDepto = f => f.departamento || MesAMes.SIN_DEPTO;
+
+    // Tabla estándar (ordenar, filtrar con selección múltiple, ajustar anchos): ver rrhh-tabla.js. Las columnas de meses cambian con el rango.
+    let grid = null, ultimoRango = '';
+    function armarGrid() {
+      const cols = [
+        { k: 'legajo', titulo: 'Legajo', sticky: true, cls: 'izq', min: 70 },
+        { k: 'nombre', titulo: 'Empleado', sticky: true, cls: 'izq', min: 200, texto: f => f.nombre || '(sin padrón)', valor: f => f.nombre || '(sin padrón)' },
+        { k: 'departamento', titulo: 'Departamento', cls: 'izq', texto: sinDepto, valor: sinDepto },
+        ...est.lista.map(p => ({ k: 'm' + p, titulo: corto(p) + marca(p), tipo: 'n', valor: f => f.meses[p], texto: f => (f.presentes.includes(p) ? num(f.meses[p]) : '—') })),
+        { k: 'total', titulo: 'Total', tipo: 'n', valor: f => f.total, texto: f => num(f.total) },
+      ];
+      const celdasSuma = (filas, etiqueta) => { const t = MesAMes.sumar(filas, est.lista);
+        return ['', etiqueta, '', ...est.lista.map(p => num(t.meses[p])), num(t.total)]; };
+      grid = Tabla.crear({
+        el: $('mm-tabla'), id: 'mesames', columnas: cols, esc,
+        pie: filas => celdasSuma(filas, 'TOTAL · ' + filas.length + ' persona' + (filas.length === 1 ? '' : 's')),
+        agrupar: { clave: sinDepto, orden: (a, b) => (a === MesAMes.SIN_DEPTO) - (b === MesAMes.SIN_DEPTO) || a.localeCompare(b, 'es'),
+                   fila: (d, filas) => celdasSuma(filas, d + ' · ' + filas.length) },
+      });
+    }
 
     function pintar() {
       const r = calcular();
-      const celdas = x => r.periodos.map(p => '<td class="' + (x.meses[p] < 0 ? 'neg' : '') + '">' + (x.meses[p] === 0 && x.presentes && !x.presentes.includes(p) ? '—' : num(x.meses[p])) + '</td>').join('')
-        + '<td class="' + (x.total < 0 ? 'neg' : '') + '"><b>' + num(x.total) + '</b></td>';
-      const filaP = f => '<tr><td class="c1">' + esc(f.legajo) + '</td><td class="c2 izq">' + esc(f.nombre || '(sin padrón)') + '</td>' + celdas(f) + '</tr>';
-      const head = '<th class="c1">Legajo</th><th class="c2 izq">Empleado</th>' + r.periodos.map(p => '<th>' + esc(corto(p)) + marca(p) + '</th>').join('') + '<th>Total</th>';
-      const body = r.grupos
-        ? r.grupos.map(g => '<tr class="grupo"><td class="c1"></td><td class="c2 izq">' + esc(g.departamento) + ' · ' + g.filas.length + '</td>' + celdas(g) + '</tr>' + g.filas.map(filaP).join('')).join('')
-        : r.filas.map(filaP).join('');
-      const foot = '<td class="c1"></td><td class="c2 izq">TOTAL · ' + r.totales.personas + ' persona' + (r.totales.personas === 1 ? '' : 's') + '</td>'
-        + r.periodos.map(p => '<td>' + num(r.totales.meses[p]) + '</td>').join('') + '<td>' + num(r.totales.total) + '</td>';
-      $('mm-tabla').innerHTML = r.filas.length
-        ? '<div class="tblwrap"><table class="tbl"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody><tfoot><tr>' + foot + '</tr></tfoot></table></div>'
-          + '<p class="nota"><b>' + esc(r.titulo) + '.</b> Importes sin centavos (el Excel exportado trae los completos); «—» = la persona no figura ese mes. '
-          + 'Costo = 4H + OC + aguinaldo + bajas + bono de proyecto (no incluye el Combo Hogar, que va a la cuenta de RRHH). '
-          + 'Cobrado = neto del recibo 4H + todo lo liquidado por OC (incluye bono y descuentos). Cobrado 4H = neto del recibo. Cobrado 4H OC = todo lo liquidado por OC.</p>'
-        : '<div class="empty">No hay personas que coincidan con el filtro.</div>';
+      const rango = r.periodos.join(',');
+      if (!grid || rango !== ultimoRango) { ultimoRango = rango; armarGrid(); }      // distinto rango de meses = columnas distintas
+      grid.render(r.filas, { agrupar: est.porDepto });
+      $('mm-nota').innerHTML = '<b>' + esc(r.titulo) + '.</b> Importes sin centavos (el Excel exportado trae los completos); «—» = la persona no figura ese mes. '
+        + 'Costo = 4H + OC + aguinaldo + bajas + bono de proyecto (no incluye el Combo Hogar, que va a la cuenta de RRHH). '
+        + 'Cobrado = neto del recibo 4H + todo lo liquidado por OC (incluye bono y descuentos). Cobrado 4H = neto del recibo. Cobrado 4H OC = todo lo liquidado por OC. '
+        + 'Ordená con un clic en el título, filtrá con ▾ (varios valores a la vez) y ajustá el ancho arrastrando el borde de la columna.';
     }
 
     function exportar() {
-      const r = calcular();
+      const r = calcular(), filas = grid ? grid.filtradas() : r.filas, t = MesAMes.sumar(filas, r.periodos);     // respeta filtros y orden de la tabla
       const aoa = [['Legajo', 'Empleado', 'Departamento', ...r.periodos.map(corto), 'Total']];
       const fila = f => [f.legajo, f.nombre || '(sin padrón)', f.departamento || '', ...r.periodos.map(p => f.meses[p]), f.total];
-      if (r.grupos) r.grupos.forEach(g => { aoa.push(['', g.departamento, '', ...r.periodos.map(p => g.meses[p]), g.total]); g.filas.forEach(f => aoa.push(fila(f))); });
-      else r.filas.forEach(f => aoa.push(fila(f)));
-      aoa.push(['', 'TOTAL', '', ...r.periodos.map(p => r.totales.meses[p]), r.totales.total]);
+      if (est.porDepto) {
+        const mapa = new Map(); filas.forEach(f => { const d = sinDepto(f); if (!mapa.has(d)) mapa.set(d, []); mapa.get(d).push(f); });
+        [...mapa.keys()].sort((a, b) => (a === MesAMes.SIN_DEPTO) - (b === MesAMes.SIN_DEPTO) || a.localeCompare(b, 'es')).forEach(d => {
+          const g = MesAMes.sumar(mapa.get(d), r.periodos); aoa.push(['', d, '', ...r.periodos.map(p => g.meses[p]), g.total]); mapa.get(d).forEach(f => aoa.push(fila(f))); });
+      } else filas.forEach(f => aoa.push(fila(f)));
+      aoa.push(['', 'TOTAL', '', ...r.periodos.map(p => t.meses[p]), t.total]);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'Costo por mes');
       XLSX.writeFile(wb, 'costo_por_mes_' + est.medida + '_' + est.desde + '_a_' + est.hasta + '.xlsx');
