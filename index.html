@@ -105,6 +105,11 @@ table.tbl{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:1
 .tbl thead .c1,.tbl thead .c2{z-index:4;}
 .tbl tfoot td{position:sticky;bottom:0;background:#f4f2ea;font-weight:700;border-top:2px solid var(--line-strong);z-index:2;}
 .tbl .neg{color:var(--mal);}
+.f931-campos{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:6px;}
+.f931-campos label{font-size:11.5px;color:var(--muted);font-weight:600;display:flex;flex-direction:column;gap:3px;}
+.f931-campos input{border:1px solid var(--line-strong);border-radius:9px;padding:7px 10px;font-size:13px;background:#fbfaf4;color:var(--ink);text-align:right;}
+.tbl tr.inf td{color:var(--muted);}
+.card-h .est{margin:0;font-weight:700;}
 .modal{position:fixed;inset:0;background:rgba(30,35,25,.45);display:flex;align-items:center;justify-content:center;z-index:60;padding:16px;}
 .modal-card{background:#fff;border-radius:14px;max-width:940px;width:100%;max-height:92vh;overflow:auto;padding:20px 22px;position:relative;box-shadow:0 14px 44px rgba(0,0,0,.2);}
 .modal-card h3{margin:0 40px 12px 0;font-size:16px;}
@@ -137,6 +142,7 @@ table.tbl{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:1
       <div class="nav-group-lbl">Liquidación</div>
       <button class="navbtn active" type="button" data-vista="importar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg><span>Importar informes</span></button>
       <button class="navbtn" type="button" data-vista="costos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16.5 5.5a3 3 0 0 1 0 5.6M18 14.3c1.9.8 3 2.6 3 5.7"/></svg><span>Costo por empleado</span></button>
+      <button class="navbtn" type="button" data-vista="controles"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg><span>Controles</span></button>
     </nav>
     <div class="sp"></div>
     <div class="data-actions">
@@ -166,6 +172,8 @@ table.tbl{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:1
 <script src="js/rrhh-costo-hora.js"></script>
 <script src="js/rrhh-informe-costo.js"></script>
 <script src="js/rrhh-vista-costos.js"></script>
+<script src="js/rrhh-f931-pdf.js"></script>
+<script src="js/rrhh-vista-controles.js"></script>
 <script src="js/rrhh-importador.js"></script>
 <script>
 /* ==========================================================================
@@ -218,7 +226,7 @@ function vistaSinSector(perfil){
 // (son sueldos: el valor por defecto es negar). Solo visión (lector) nunca edita. La base es la que manda; esto solo evita
 // mostrar pantallas que después no se podrían usar.
 const RRHH_SECCIONES = ['liquidacion', 'costos', 'config'];
-const VISTA_SECCION = { importar: 'liquidacion', costos: 'costos' };
+const VISTA_SECCION = { importar: 'liquidacion', costos: 'costos', controles: 'liquidacion' };
 const PERM = { ver: new Set(), editar: new Set() };
 function permisosRrhh(perfil, fila){
   if (perfil.es_direccion) { RRHH_SECCIONES.forEach(x => { PERM.ver.add(x); PERM.editar.add(x); }); return; }
@@ -234,7 +242,7 @@ function vistaApp(perfil, cargo, fila){
   document.getElementById('who-nombre').textContent = (perfil.nombre || perfil.email || '') + (cargo ? ' · ' + cargo : '');
   permisosRrhh(perfil, fila);
   document.querySelectorAll('#nav .navbtn').forEach(b => { b.hidden = !PERM.ver.has(VISTA_SECCION[b.dataset.vista]); });
-  const primera = ['importar', 'costos'].find(v => PERM.ver.has(VISTA_SECCION[v]));
+  const primera = ['importar', 'costos', 'controles'].find(v => PERM.ver.has(VISTA_SECCION[v]));
   if (!primera) {
     pantallaAcceso('Tu usuario (<b>' + esc(perfil.nombre || perfil.email) + '</b>) tiene acceso a Recursos Humanos pero ninguna sección habilitada.<br><span style="font-size:12px;color:var(--muted)">Pedile a dirección que te tilde las secciones en la pantalla de Usuarios del portal.</span>',
       'Cerrar sesión', salir);
@@ -248,7 +256,24 @@ const titulo = (t, sub) => { document.getElementById('pageTitle').textContent = 
 const VISTAS = {
   importar: vistaImportar,
   costos: () => RRHHVistaCostos.montar({ sb, $main, esc, PERM, XLSX, Informe: RRHHInformeCosto, titulo }),
+  controles: () => RRHHVistaControles.montar({ sb, $main, esc, PERM, Calc: RRHHCalculo, F931Pdf: RRHHF931Pdf, cargarPdfJs, titulo }),
 };
+
+// Lector de PDF (pdf.js): se carga solo cuando se sube un F.931, para no pesar en el resto de la app.
+const PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+let _pdfjs = null;
+function cargarPdfJs(){
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if (_pdfjs) return _pdfjs;
+  _pdfjs = new Promise((ok, mal) => {
+    const sc = document.createElement('script');
+    sc.src = PDFJS_BASE + 'pdf.min.js';
+    sc.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_BASE + 'pdf.worker.min.js'; ok(window.pdfjsLib); };
+    sc.onerror = () => { _pdfjs = null; mal(new Error('no se pudo cargar el lector de PDF')); };
+    document.head.appendChild(sc);
+  });
+  return _pdfjs;
+}
 function irVista(v){
   document.querySelectorAll('#nav .navbtn').forEach(b => b.classList.toggle('active', b.dataset.vista === v));
   VISTAS[v]();

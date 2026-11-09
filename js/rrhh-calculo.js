@@ -205,6 +205,11 @@
     { clave: 'scvo', etiqueta: 'Seguro de vida obligatorio', conceptos: [80200] },
     { clave: 'lrt', etiqueta: 'ART / LRT', conceptos: [80100] },
     { clave: 'contrib_ss', etiqueta: 'Contribuciones S.S.', conceptos: [80000, 80010, 80020, 80030, 80040] },
+    // Informativas (no bloquean): son retenciones al empleado, no costo de la empresa; y la referencia sin ANSSAL
+    // para ayudar a explicar la diferencia de contribuciones S.S. con el contador.
+    { clave: 'aportes_ss', etiqueta: 'Aportes S.S. (retenciones: jubilación + Ley 19.032)', conceptos: [20000, 20010], signo: -1, informativo: true },
+    { clave: 'aportes_os', etiqueta: 'Aportes O.S. (retención 3%)', conceptos: [20030], signo: -1, informativo: true },
+    { clave: 'contrib_ss_sin_anssal', ref: 'contrib_ss', etiqueta: 'Contribuciones S.S. sin ANSSAL (referencia)', conceptos: [80000, 80010, 80020, 80030], informativo: true },
   ];
 
   /**
@@ -222,12 +227,12 @@
         if (m.grupo) {
           const c = cat.get(f.nro_concepto + '|4H');
           if (c && c.grupo_sistema === m.grupo) suma += cents(f.importe);
-        } else if (m.conceptos.includes(f.nro_concepto)) suma += cents(f.importe);
+        } else if (m.conceptos.includes(Number(f.nro_concepto))) suma += cents(f.importe);   // en la base el nro es texto
       }
-      const liq = pesos(suma);
-      const ref = Number(f931[m.clave]);
+      const liq = pesos(suma * (m.signo || 1));
+      const ref = Number(f931[m.ref || m.clave]);
       const dif = r2(liq - ref);
-      return { clave: m.clave, etiqueta: m.etiqueta, liquidacion: liq, f931: ref, diferencia: dif,
+      return { clave: m.clave, etiqueta: m.etiqueta, liquidacion: liq, f931: ref, diferencia: dif, informativo: !!m.informativo,
                ok: Number.isFinite(ref) && Math.abs(dif) <= o.tolerancia };
     });
     const legs = new Set(filas.map(f => f.legajo)).size;
@@ -236,7 +241,7 @@
     // (octubre: 1602 + 6501 explican exacto la diferencia de Remuneraciones).
     const sinCatalogar = [...new Set(filas.filter(x => !cat.has(x.nro_concepto + '|4H')).map(x => x.nro_concepto))];
     return { lineas, empleados, sinCatalogar,
-             ok: lineas.every(l => l.ok) && empleados.ok && !sinCatalogar.length };
+             ok: lineas.every(l => l.informativo || l.ok) && empleados.ok && !sinCatalogar.length };
   }
 
   return { calcularPeriodo, indexarCatalogo, lineaDeFila, LINEAS, controlHoras, controlBono, controlPeriodo,

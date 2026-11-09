@@ -116,3 +116,12 @@ completo NO se versiona porque contiene valores de control de octubre.
 - Verificado solo en local con los Excel de control de septiembre y octubre: septiembre coincide con la hoja `Project` en todos los operarios y su cierre
   queda sin bloqueos; octubre no cambia.
 - Sigue abierto: el SAC (aguinaldo) se provisiona 1/12 por mes o se imputa al pagarse.
+
+## Control del F.931 en la app (2026-11-09)
+- Nueva solapa **Controles**: se sube el PDF del F.931 apenas se recibe. Se lee EN EL NAVEGADOR con pdf.js (se carga solo al subir el PDF) y **el archivo
+  no se guarda**: se muestran los valores leídos para confirmarlos o corregirlos y se guardan solo esos números en `rrhh_f931`.
+- Si el PDF es de otro mes que el elegido, no se carga nada. Si el lector de PDF no carga o falta algún dato, se completa a mano; el extractor nunca inventa valores.
+- El control compara contra lo liquidado en el recibo 4H, con tolerancia configurable, y muestra como informativas (no bloquean) los aportes y las contribuciones
+  S.S. sin ANSSAL, para hablarlas con el contador.
+- Verificado solo en local con el F.931 real de octubre. Pendiente: probar contra la base real y con la URL de pdf.js en cdnjs desde el navegador.
+- **SAC (decisión):** por ahora se muestra en el mes en que se paga; después se define si se provisiona.
