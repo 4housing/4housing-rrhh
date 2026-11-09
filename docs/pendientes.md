@@ -88,3 +88,10 @@ completo NO se versiona porque contiene valores de control de octubre.
 - Prefijo `rrhh_`: no figura en la lista de prefijos de los CLAUDE.md de portal y planificación (sí está
   `rrhh` en el enum y en `SECTORES` del portal). Conviene que Pablo lo confirme.
 - Falta un `CLAUDE.md` en este repo, como tienen los demás.
+
+## Decisiones de administración — 2026-11-09
+- **Legajo 170: es operario.** Existe (administración decía que no); está con licencia, por eso no figura en planificación
+  (igual que 163 y 164). Los operarios para el costo son 21: los 20 de la hoja de control de octubre + el 170. El 162 no es operario.
+- **Concepto 1602 (Premio Variable Voluntario): se carga como costo.** Sin regla de reparto todavía (el motor lo reparte por horas pagas y lo lista).
+- Sigue pendiente: 6501 (Adic. Reintegro impuestos; no es de un operario) frena el cierre hasta que administración decida su tratamiento.
+- Planificación: `planificacion_valor_hora_hist` guarda el mes como `AAAA-MM` y tiene UNIQUE (persona_id, mes): publicar el valor hora = upsert por persona y mes.

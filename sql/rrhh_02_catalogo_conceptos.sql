@@ -9,8 +9,9 @@
 -- trata NULL = PENDIENTE de definir (SAC, indemnizaciones, vacaciones no gozadas, bonos de posventa y algunos dudosos):
 -- la app los marca «sin tratamiento» y BLOQUEA EL CIERRE si aparecen en un período. Se completan desde la app/SQL cuando
 -- administración decida.
--- 1602 (Premio Variable Voluntario) y 6501 (Adic. Reintegro impuestos) NO se cargan a propósito: están sin catalogar en
--- el Excel y la app debe avisar. 
+-- 1602 (Premio Variable Voluntario) se carga como COSTO por decisión de administración (2026-11-09). Sin regla de reparto
+-- todavía (prorrateo nulo): el motor lo reparte por horas pagas y lo lista para que se defina.
+-- 6501 (Adic. Reintegro impuestos) NO se carga a propósito: está sin catalogar en el Excel y la app debe avisar.
 -- No pisa lo que ya esté cargado o editado (on conflict do nothing).
 -- =====================================================================
 
@@ -44,6 +45,7 @@ values
   ('1565','4H','Ajuste retroactivo  1Q-Ago 2026','Haberes','SUELDO','costo',false,null,null),
   ('1600','4H','A cuenta futuros aumentos','Haberes','SUELDO','costo',false,null,'por_horas_pagas'),
   ('1601','4H','A cuenta futuros aumentos 1/2 J','Haberes','SUELDO','costo',false,null,null),
+  ('1602','4H','Premio Variable Voluntario','Haberes','SUELDO','costo',false,null,null),
   ('3000','4H','Hs extras 50%','Haberes','SUELDO','costo',true,'extra50','directo'),
   ('6000','4H','Sueldo básico','Haberes','SUELDO','costo',false,null,null),
   ('6001','4H','Lic. por maternidad','Haberes','SUELDO','costo',false,null,null),
