@@ -105,6 +105,7 @@ table.tbl{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:1
 .tbl thead .c1,.tbl thead .c2{z-index:4;}
 .tbl tfoot td{position:sticky;bottom:0;background:#f4f2ea;font-weight:700;border-top:2px solid var(--line-strong);z-index:2;}
 .tbl .neg{color:var(--mal);}
+.tbl tr.grupo td{background:var(--olive-soft);font-weight:700;}
 .f931-campos{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:6px;}
 .f931-campos label{font-size:11.5px;color:var(--muted);font-weight:600;display:flex;flex-direction:column;gap:3px;}
 .f931-campos input{border:1px solid var(--line-strong);border-radius:9px;padding:7px 10px;font-size:13px;background:#fbfaf4;color:var(--ink);text-align:right;}
@@ -142,6 +143,7 @@ table.tbl{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:1
       <div class="nav-group-lbl">Liquidación</div>
       <button class="navbtn active" type="button" data-vista="importar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg><span>Importar informes</span></button>
       <button class="navbtn" type="button" data-vista="costos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16.5 5.5a3 3 0 0 1 0 5.6M18 14.3c1.9.8 3 2.6 3 5.7"/></svg><span>Costo por empleado</span></button>
+      <button class="navbtn" type="button" data-vista="mesames"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span>Costo por mes</span></button>
       <button class="navbtn" type="button" data-vista="controles"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg><span>Controles</span></button>
     </nav>
     <div class="sp"></div>
@@ -172,6 +174,8 @@ table.tbl{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:1
 <script src="js/rrhh-costo-hora.js"></script>
 <script src="js/rrhh-informe-costo.js"></script>
 <script src="js/rrhh-vista-costos.js"></script>
+<script src="js/rrhh-mes-a-mes.js"></script>
+<script src="js/rrhh-vista-mes-a-mes.js"></script>
 <script src="js/rrhh-f931-pdf.js"></script>
 <script src="js/rrhh-vista-controles.js"></script>
 <script src="js/rrhh-importador.js"></script>
@@ -226,7 +230,7 @@ function vistaSinSector(perfil){
 // (son sueldos: el valor por defecto es negar). Solo visión (lector) nunca edita. La base es la que manda; esto solo evita
 // mostrar pantallas que después no se podrían usar.
 const RRHH_SECCIONES = ['liquidacion', 'costos', 'config'];
-const VISTA_SECCION = { importar: 'liquidacion', costos: 'costos', controles: 'liquidacion' };
+const VISTA_SECCION = { importar: 'liquidacion', costos: 'costos', mesames: 'costos', controles: 'liquidacion' };
 const PERM = { ver: new Set(), editar: new Set() };
 function permisosRrhh(perfil, fila){
   if (perfil.es_direccion) { RRHH_SECCIONES.forEach(x => { PERM.ver.add(x); PERM.editar.add(x); }); return; }
@@ -256,6 +260,7 @@ const titulo = (t, sub) => { document.getElementById('pageTitle').textContent = 
 const VISTAS = {
   importar: vistaImportar,
   costos: () => RRHHVistaCostos.montar({ sb, $main, esc, PERM, XLSX, Informe: RRHHInformeCosto, titulo }),
+  mesames: () => RRHHVistaMesAMes.montar({ sb, $main, esc, PERM, XLSX, Informe: RRHHInformeCosto, MesAMes: RRHHMesAMes, titulo }),
   controles: () => RRHHVistaControles.montar({ sb, $main, esc, PERM, Calc: RRHHCalculo, F931Pdf: RRHHF931Pdf, cargarPdfJs, titulo }),
 };
 
