@@ -35,12 +35,16 @@
     ['horasPagas', 'Horas pagas', 'Horas', 'h'], ['valorHoraTrabajada', '$/hora trabajada', 'Horas', 'n'],
   ];
 
+  // Orden estable para paginar: no todas las tablas tienen columna «id» (rrhh_conceptos usa nro_concepto+empresa, rrhh_empleados usa legajo)
+  const ORDEN = { rrhh_conceptos: ['nro_concepto', 'empresa'], rrhh_empleados: ['legajo'] };
+  const ordenar = (q, tabla) => (ORDEN[tabla] || ['id']).reduce((x, c) => x.order(c), q);
+
   async function traerTodo(sb, tabla, columnas, periodo) {
     const out = [];
     for (let desde = 0; ; desde += 1000) {                       // la base entrega máx. 1000 filas por pedido
       let q = sb.from(tabla).select(columnas);
       if (periodo) q = q.eq('periodo', periodo);
-      const { data, error } = await q.order('id').range(desde, desde + 999);
+      const { data, error } = await ordenar(q, tabla).range(desde, desde + 999);
       if (error) throw new Error(tabla + ': ' + error.message);
       out.push(...(data || []));
       if (!data || data.length < 1000) break;
