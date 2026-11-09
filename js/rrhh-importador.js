@@ -164,8 +164,19 @@
       out.periodo = p;
       const otros = periodos.length - n;
       if (otros) out.advertencias.push(otros + ' fila(s) con ' + que + ' fuera de ' + p + '.');
+      renumerar(out, p);
     }
     return out;
+  }
+
+  // Personas que en un mes figuraban con un legajo y después pasaron a otro. Se corrige al importar, SOLO en ese mes
+  // (el mismo número puede ser otra persona en otros meses). Solo números de legajo: ningún nombre ni dato de sueldos.
+  const RENUMERACION = { '2026-08': { 85: 1000, 86: 1002 } };
+  function renumerar(out, periodo) {
+    const mapa = RENUMERACION[periodo]; if (!mapa) return;
+    let n = 0;
+    for (const f of out.filas) if (Object.prototype.hasOwnProperty.call(mapa, f.legajo)) { f.legajo = mapa[f.legajo]; n++; }
+    if (n) out.advertencias.push(n + ' fila(s) pasadas a su legajo actual (' + Object.entries(mapa).map(([a, b]) => a + '→' + b).join(', ') + ') en ' + periodo + '.');
   }
 
   /**
@@ -210,5 +221,5 @@
     return [...new Set(filasLiquidacion.map(f => f.legajo))].filter(l => !en.has(l)).sort((a, b) => a - b);
   }
 
-  return { parseResumen, parseNovedades, parsePadron, legajosSinPadron, pareceInforme, aFechaISO, norm, esHojaDerivada, hojasDeControl };
+  return { parseResumen, parseNovedades, parsePadron, legajosSinPadron, pareceInforme, aFechaISO, norm, esHojaDerivada, hojasDeControl, RENUMERACION };
 });
