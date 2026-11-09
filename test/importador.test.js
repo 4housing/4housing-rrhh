@@ -124,3 +124,24 @@ test('pareceInforme elige la hoja correcta aunque haya otras (HABILITADO, _metad
   assert.equal(I.pareceInforme([H_NOV], 'resumen'), false);
   assert.equal(I.pareceInforme([['Legajo', 'Apellido y nombre', 'Departamento']], 'padron'), true);
 });
+
+test('Excel de control: hojas derivadas se ignoran y se ubican las 3 hojas de datos', () => {
+  const R = require('../js/rrhh-importador.js');
+  assert.equal(R.esHojaDerivada('Project'), true);
+  assert.equal(R.esHojaDerivada(' SUSS '), true);
+  assert.equal(R.esHojaDerivada('Liquidacion Mensual'), false);
+  const h = R.hojasDeControl(['Project', 'Resumen', 'Liquidacion Mensual', 'Liquidacion Mensual (2)', 'Legajos', 'td']);
+  assert.deepEqual(h, { cuatroH: 'Liquidacion Mensual', oc: 'Liquidacion Mensual (2)', padron: 'Legajos' });
+  assert.equal(R.hojasDeControl(['Otra']).cuatroH, null);
+});
+
+test('padrón del Excel de control: «Número» y «Descripción de departamento»; sin datos personales', () => {
+  const R = require('../js/rrhh-importador.js');
+  const m = [['Número', 'Apellido y nombre', 'Descripción de departamento', 'Teléfono 1', 'CUIL', 'Correo electrónico'],
+             [7, 'Ejemplo Siete', 'OPERACIONES', '000', '00-00000000-0', 'x@example.com']];
+  assert.equal(R.pareceInforme(m, 'padron'), true);
+  const r = R.parsePadron(m);
+  assert.equal(r.filas.length, 1);
+  assert.deepEqual(Object.keys(r.filas[0]).sort(), ['departamento', 'legajo', 'nombre']);
+  assert.equal(r.filas[0].departamento, 'OPERACIONES');
+});

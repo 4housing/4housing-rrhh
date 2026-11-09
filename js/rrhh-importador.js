@@ -41,7 +41,8 @@
     if (!matriz || !matriz.length) return false;
     const h = matriz[0].map(norm);
     const clave = { resumen: 'nro de concepto', novedades: 'cod novedad', padron: 'apellido y nombre' }[tipo];
-    return h.includes('legajo') && h.some(x => x.startsWith(clave));
+    const tieneLegajo = h.includes('legajo') || (tipo === 'padron' && h.includes('numero'));   // el Excel de control llama «Número» al legajo
+    return tieneLegajo && h.some(x => x.startsWith(clave));
   }
 
   const MS_DIA = 86400000;
@@ -174,7 +175,7 @@
   function parsePadron(matriz) {
     const out = resultado();
     const { idx, faltan } = columnas(matriz[0] || [], {
-      legajo: ['legajo'], nombre: ['apellido y nombre', 'nombre'], departamento: ['departamento'],
+      legajo: ['legajo', 'numero'], nombre: ['apellido y nombre', 'nombre'], departamento: ['departamento', 'descripcion de departamento'],
     });
     if (faltan.length) { out.errores.push('Faltan columnas: ' + faltan.join(', ')); return out; }
     const vistos = new Set();
@@ -193,11 +194,21 @@
     return out;
   }
 
+  // Excel de control mensual (LIQUIDACION_MENSUAL_SUELDOS_AAAAMM.xlsx): trae el recibo 4H, la liquidación OC y los legajos en un solo archivo.
+  // Las hojas derivadas (Project, Resumen, SUSS…) NO son informes y nunca se importan.
+  const sinEspacios = s => norm(s).replace(/ /g, '');
+  const HOJAS_DERIVADAS = ['project', 'resumen', 'suss', 'ope', 'admin', 'gcia', 'td', 'conceptos'];
+  const esHojaDerivada = nombre => HOJAS_DERIVADAS.includes(sinEspacios(nombre));
+  function hojasDeControl(nombres) {
+    const buscar = x => (nombres || []).find(n => sinEspacios(n) === sinEspacios(x)) || null;
+    return { cuatroH: buscar('Liquidacion Mensual'), oc: buscar('Liquidacion Mensual (2)'), padron: buscar('Legajos') };
+  }
+
   /** Legajos liquidados que no están en el padrón (handoff §7.3). */
   function legajosSinPadron(filasLiquidacion, padron) {
     const en = new Set(padron.map(p => p.legajo));
     return [...new Set(filasLiquidacion.map(f => f.legajo))].filter(l => !en.has(l)).sort((a, b) => a - b);
   }
 
-  return { parseResumen, parseNovedades, parsePadron, legajosSinPadron, pareceInforme, aFechaISO, norm };
+  return { parseResumen, parseNovedades, parsePadron, legajosSinPadron, pareceInforme, aFechaISO, norm, esHojaDerivada, hojasDeControl };
 });
