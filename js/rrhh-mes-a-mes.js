@@ -77,5 +77,12 @@
     return [...s].sort((a, b) => (a === SIN_DEPTO) - (b === SIN_DEPTO) || a.localeCompare(b, 'es'));
   }
 
-  return { matriz, departamentos, MEDIDAS, SIN_DEPTO };
+  /** Suma de una lista de filas de la matriz (las que quedan después de filtrar): { meses:{p:$}, total:$ }, exacta en centavos. */
+  function sumar(filas, periodos) {
+    const meses = {}; let total = 0;
+    for (const p of periodos) { const c = filas.reduce((s, f) => s + cent(f.meses[p]), 0); meses[p] = c / 100; total += c; }
+    return { meses, total: total / 100 };
+  }
+
+  return { matriz, departamentos, sumar, MEDIDAS, SIN_DEPTO };
 });
