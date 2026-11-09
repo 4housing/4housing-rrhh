@@ -47,10 +47,19 @@
     return mapa;
   }
 
+  // Tipo de bono de proyecto, por la descripción del concepto del catálogo: Montaje, Posventa u «otro» (hasta ahora todo se llamaba
+  // Producción; a futuro se discriminan). Un concepto nuevo con otro nombre cae en «otro» hasta que se lo clasifique acá.
+  function tipoBono(c) {
+    const d = String((c && c.descripcion) || '').toLowerCase();
+    if (/post\s*venta|posventa/.test(d)) return 'posventa';
+    if (/montaje/.test(d)) return 'montaje';
+    return 'otro';
+  }
+
   function vacio() {
     return {
       haberes: 0, retenciones: 0, noRem: 0, noRemTotal: 0, contrib: 0,
-      bono: 0, bonoDirecto: 0, cuentaRRHH: 0, excluidosOC: 0, directoOC: 0,
+      bono: 0, bonoDirecto: 0, bonoTipo: { montaje: 0, posventa: 0, otro: 0 }, cuentaRRHH: 0, excluidosOC: 0, directoOC: 0,
       totalOC: 0, horasPorTipo: {}, horasPagas: 0, horasProductivas: 0,
       lineas: { aguinaldo: 0, bajas: 0 }, lineas4H: 0,
     };
@@ -112,7 +121,7 @@
         if (trata === 'costo') {
           if (linea) a.lineas[linea] += imp;                        // línea propia: no es costo corriente ni entra al valor hora
           else { a.bono += imp; if (c.prorrateo === 'directo') a.directoOC += imp; }
-        } else if (trata === 'directo_proyecto') a.bonoDirecto += imp;
+        } else if (trata === 'directo_proyecto') { a.bonoDirecto += imp; a.bonoTipo[tipoBono(c)] += imp; }
         else if (trata === 'cuenta_rrhh') a.cuentaRRHH += imp;
         else if (trata === 'excluir') a.excluidosOC += imp;
         else anotar(noSoportada, f, { motivo: 'trata ' + trata + ' en OC no está definido en el handoff' });
@@ -133,6 +142,7 @@
         noRem: pesos(a.noRem), noRemTotal: pesos(a.noRemTotal), contrib: pesos(a.contrib),
         netoAcreditado: pesos(neto), cargas: pesos(cargas), costo4H: pesos(costo4H),
         bono: pesos(a.bono), bonoDirecto: pesos(a.bonoDirecto), cuentaRRHH: pesos(a.cuentaRRHH),
+        bonoTipo: { montaje: pesos(a.bonoTipo.montaje), posventa: pesos(a.bonoTipo.posventa), otro: pesos(a.bonoTipo.otro) },   // el bono de proyecto abierto por tipo
         excluidosOC: pesos(a.excluidosOC),
         directoOC: pesos(a.directoOC),   // p.ej. sábados/extras OC: se imputan directo (opción A)
         totalOC: pesos(a.totalOC),

@@ -129,3 +129,14 @@ completo NO se versiona porque contiene valores de control de octubre.
 - **Concepto 6501 (Adic. Reintegro impuestos): se carga como costo** (decisión de administración, 2026-11-09): es de una persona con licencia y se trata
   como una ART (costo sin horas productivas). Sin regla de reparto. Con él, el cierre de octubre ya no queda frenado por conceptos sin catalogar y la línea
   de Remuneraciones del control del F.931 coincide; quedan las diferencias de ART/LRT y de contribuciones S.S. para revisar con el contador.
+
+## Bonos (decisiones de administración, 2026-11)
+- Tipos: **Producción** (porcentaje sobre ventas), **Montaje** (adicional por ir a trabajar a un montaje), **Posventa** (adicional por ir a trabajar a un posventa).
+  Hasta ahora todo se llamaba «Bono Producción»; **a futuro se discriminan**. Todos se computan contra proyectos.
+- Montaje = conceptos 55015, 55016, 55025. Posventa = 55020, 55029 (tratamiento `directo_proyecto`, igual que Montaje).
+  Falta saber qué concepto(s) de la liquidación son el Bono Producción: mientras tanto lo no discriminado cae en «Otros (sin discriminar)».
+- «Costo por mes» permite incluir o no cada tipo de bono (Montaje / Posventa / Otros).
+- Solapa **Bonos** (pendiente): histórico desde BONOS_2025-2026.xlsx y los archivos por proyecto (n° 43, 44…), más lo liquidado.
+  A futuro, al importar conceptos de bono la app pregunta a qué proyecto corresponde: se propone uno con el total liquidado (editable),
+  un **+** agrega otro proyecto con su importe, y la suma tiene que coincidir con lo liquidado. Requiere tablas nuevas (SQL aparte).
+- Etapa siguiente (faltan archivos): ajuste de fichadas (salida sin fichar, aprobar horas extra) y Excel de salida para importar novedades en Tango.

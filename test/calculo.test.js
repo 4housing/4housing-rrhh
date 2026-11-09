@@ -266,3 +266,16 @@ test('F.931: los aportes (retenciones) y la referencia sin ANSSAL son informativ
   const sinContrib = C.controlF931(filas, cat3, { remuneracion_1: 1000, contrib_ss: 250, contrib_os: 60, lrt: 40, scvo: 2, aportes_ss: 1, aportes_os: 1, empleados: 1 }, { tolerancia: 0.5 });
   assert.equal(sinContrib.ok, true);                     // aportes muy distintos pero informativos: no bloquean
 });
+
+test('bono de proyecto abierto por tipo según la descripción del concepto (montaje, posventa, otro)', () => {
+  const C = require('../js/rrhh-calculo.js');
+  const cat = [
+    { nro_concepto: '9001', empresa: '4H_OC', descripcion: 'Bono Montaje - X', grupo_sistema: 'No Remunerativo', trata: 'directo_proyecto' },
+    { nro_concepto: '9002', empresa: '4H_OC', descripcion: 'Bono Posventa - X', grupo_sistema: 'No Remunerativo', trata: 'directo_proyecto' },
+    { nro_concepto: '9003', empresa: '4H_OC', descripcion: 'Bono Otro', grupo_sistema: 'No Remunerativo', trata: 'directo_proyecto' },
+  ];
+  const filas = [['9001', 100], ['9002', 40], ['9003', 7]].map(([n, i]) => ({ empresa: '4H_OC', legajo: 1, tipo_liquidacion: 'Mensual', nro_concepto: n, importe: i, cantidad: 0 }));
+  const r = C.calcularPeriodo(filas, cat).legajos[1];
+  assert.deepEqual(r.bonoTipo, { montaje: 100, posventa: 40, otro: 7 });
+  assert.equal(r.bonoDirecto, 147);
+});
