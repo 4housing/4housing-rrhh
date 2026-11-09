@@ -121,6 +121,30 @@
   }
 
   /**
+   * Histórico del libro por período, tal cual lo rotula la planilla (p. ej. «202504/202505»: un bono pagado en dos meses no se parte
+   * por mes porque la planilla no dice cuánto va a cada uno). → [{etiqueta, desde, bonos, personas, montaje, posventa, produccion, sin_discriminar, total}]
+   */
+  function resumenPorPeriodo(bonos, personas) {
+    const porBono = new Map(), pp = new Map();
+    for (const p of personas || []) {
+      porBono.set(p.num_bono, (porBono.get(p.num_bono) || 0) + cent(p.importe));
+      if (!pp.has(p.num_bono)) pp.set(p.num_bono, new Set()); pp.get(p.num_bono).add(p.legajo);
+    }
+    const m = new Map();
+    for (const b of bonos || []) {
+      const k = b.etiqueta_periodo || '';
+      const r = m.get(k) || { etiqueta: k || '(sin período)', desde: b.periodo_desde || null, bonos: 0, personas: new Set(), montaje: 0, posventa: 0, produccion: 0, sin_discriminar: 0 };
+      const t = TIPOS[b.tipo] ? b.tipo : 'sin_discriminar';
+      r.bonos++; r[t] += porBono.get(b.num_bono) || 0;
+      (pp.get(b.num_bono) || new Set()).forEach(l => r.personas.add(l));
+      m.set(k, r);
+    }
+    return [...m.values()].sort((a, b) => (a.desde || '9999') < (b.desde || '9999') ? -1 : (a.desde || '9999') > (b.desde || '9999') ? 1 : a.etiqueta.localeCompare(b.etiqueta))
+      .map(r => ({ etiqueta: r.etiqueta, desde: r.desde, bonos: r.bonos, personas: r.personas.size, montaje: r.montaje / 100, posventa: r.posventa / 100,
+        produccion: r.produccion / 100, sin_discriminar: r.sin_discriminar / 100, total: (r.montaje + r.posventa + r.produccion + r.sin_discriminar) / 100 }));
+  }
+
+  /**
    * Lo liquidado por mes en los conceptos de bono de proyecto (trata directo_proyecto, OC): filas de rrhh_liquidacion_filas + catálogo.
    * tipoBono(concepto) viene de rrhh-calculo.js. → [{periodo, montaje, posventa, otro, total, personas}]
    */
@@ -137,5 +161,5 @@
       total: (r.montaje + r.posventa + r.otro) / 100, personas: r.personas.size }));
   }
 
-  return { parseLibro, detallePersonas, resumenProyectos, liquidadoPorMes, tipoDe, periodoDe, TIPOS };
+  return { parseLibro, detallePersonas, resumenProyectos, resumenPorPeriodo, liquidadoPorMes, tipoDe, periodoDe, TIPOS };
 });

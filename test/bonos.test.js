@@ -75,3 +75,14 @@ test('lo liquidado por mes: solo conceptos OC de bono de proyecto, abiertos por 
   const r = B.liquidadoPorMes(filas, cat, tipo);
   assert.deepEqual(r.map(x => [x.periodo, x.montaje, x.posventa, x.total, x.personas]), [['2026-09', 100, 40, 140, 2], ['2026-10', 5, 0, 5, 1]]);
 });
+
+test('histórico por período: agrupa por la etiqueta de la planilla y abre el total por tipo', () => {
+  const bonos = [{ num_bono: 1, tipo: 'sin_discriminar', etiqueta_periodo: '202504/202505', periodo_desde: '2025-04' }, { num_bono: 2, tipo: 'posventa', etiqueta_periodo: '202506', periodo_desde: '2025-06' },
+                 { num_bono: 3, tipo: 'montaje', etiqueta_periodo: '202506', periodo_desde: '2025-06' }, { num_bono: 4, tipo: 'sin_discriminar', etiqueta_periodo: null, periodo_desde: null }];
+  const personas = [{ num_bono: 1, legajo: 1, importe: 100.10 }, { num_bono: 2, legajo: 1, importe: 40 }, { num_bono: 3, legajo: 2, importe: 60.20 }, { num_bono: 4, legajo: 3, importe: 1 }];
+  const r = B.resumenPorPeriodo(bonos, personas);
+  assert.deepEqual(r.map(x => x.etiqueta), ['202504/202505', '202506', '(sin período)']);   // por fecha; sin período al final
+  const j = r.find(x => x.etiqueta === '202506');
+  assert.equal(j.bonos, 2); assert.equal(j.personas, 2); assert.equal(j.posventa, 40); assert.equal(j.montaje, 60.20); assert.equal(j.total, 100.20);
+  assert.equal(r[0].sin_discriminar, 100.10);
+});
