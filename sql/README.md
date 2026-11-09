@@ -11,6 +11,7 @@ Orden: `06_rrhh_reemplazo.sql` → `rrhh_00_sector.sql` (opcional) → `rrhh_01_
 | `rrhh_00_sector.sql` | Agrega `'rrhh'` a `sector_portal` si falta (hoy ya existe: no hace nada). |
 | `rrhh_01_tablas.sql` | 11 tablas, permisos por sección (`liquidacion`, `costos`, `config`; sin lista guardada no se ve nada), RLS e importación. |
 | `rrhh_02_catalogo_conceptos.sql` | Catálogo de 109 conceptos (tratamiento y prorrateo). 15 quedan PENDIENTES (`trata` nula: bloquean el cierre). 1602 y 6501 no se cargan a propósito. No pisa lo editado a mano. |
+| `rrhh_03_lectura_planificacion.sql` | Función de SOLO LECTURA `rrhh_planificacion_mes('AAAA-MM')`: devuelve en un json el detalle diario, la no disponibilidad, los feriados y la supervisión de planificación. Solo para dirección o quien tenga Ver en «costos». No devuelve costos, presupuestos ni nombres. |
 
 ## Provisorio — reemplazado, NO volver a correr
 `01_rrhh_esquema.sql`, `02_rrhh_rls.sql`, `03_rrhh_catalogo_seed.sql`, `04_rrhh_importacion.sql`, `05_rrhh_secciones.sql`.
@@ -19,6 +20,6 @@ Correr `rrhh_01_tablas.sql` **encima** de ese esquema sin pasar por el 06 deja f
 (quien tiene solo `ve_sueldos: true` seguiría viendo la liquidación).
 
 ## Estado en producción (Supabase `wcpkpwxhqdcdljfwzcmy`)
-Corridos el 2026-11-08: `06_rrhh_reemplazo.sql`, `rrhh_01_tablas.sql` y `rrhh_02_catalogo_conceptos.sql`
+Corridos el 2026-11-08 (y `rrhh_03_lectura_planificacion.sql` el 2026-11-09, verificado con octubre): `06_rrhh_reemplazo.sql`, `rrhh_01_tablas.sql` y `rrhh_02_catalogo_conceptos.sql`
 (`rrhh_00_sector.sql` no hizo falta: `'rrhh'` ya existía en `sector_portal`). Octubre 2026 importado desde la pantalla;
 verificado contra el F.931: 4 lotes, 47 legajos y remuneraciones (Haberes 4H) idénticas a la declaración jurada.
