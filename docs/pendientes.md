@@ -24,6 +24,24 @@ completo NO se versiona porque contiene valores de control de octubre.
 - (Resuelto) `planificacion_persona_id` es uuid, como `planificacion_valor_hora_hist.persona_id`.
 - Grupo/agrupador de 1100, 1102, 1500, 1550, 1600 (supuestos Haberes/SUELDO).
 
+## Sábados, extras de fin de semana y fichadas (decisión de administración)
+- Los sábados y las extras se pagan por OC y se imputan por lo liquidado (opción A). `js/rrhh-sabados.js` avisa cuando un
+  día se pagó y NO figura en la planificación (o al revés) y pide que administración VALIDE; no es un error automático:
+  la planificación puede no reflejarlo y **manda la fichada y la autorización del supervisor** para el pago.
+- Hoy el control queda en `sin_planificacion` (no se puede comparar hasta tener la lectura de planificación). Octubre:
+  23 días de fin de semana pagados en 15 legajos para validar.
+- **Etapa futura:** trabajar con fichadas y con la autorización de horas extra (supervisor); la validación pasará a hacerse contra ellas.
+
+## Motor de costo por tipo de hora (js/rrhh-costo-hora.js) — estado
+- Reglas en el encabezado del archivo. Verificadas con los 20 operarios de octubre (solo local, sin guardar cifras acá):
+  para cada uno, Σ costo por tipo + «sin horas» + sábados/extras OC = su CUESTA; la cantidad del concepto 1100 = horas de
+  todos los tipos menos las extras; el mensualizado (110) cierra con la cifra de control del handoff.
+- Legajo 148 (octubre): el reparto queda a menos de 0,05% de los valores por hora del handoff (que dice «aproximado»).
+  Ninguna combinación de bases los reproduce exacto. Los valores por persona NO se escriben en el repo (es público).
+- Quedan «sin regla» (se reparten por horas pagas y se listan): 6000 Sueldo básico y 99999 Redondeo. A definir con administración.
+- Los pagos fijos sin horas trabajadas (mes entero de ART/enfermedad, mensualizados) quedan «sin horas»: costo real sin valor hora.
+- Pendiente: guardar el resultado (rrhh_costo_mensual / rrhh_valor_hora), pantalla de Costos y publicar a planificación.
+
 ## Motor de cálculo (js/rrhh-calculo.js) — estado
 - Tests sintéticos: `node --test test/calculo.test.js` (no usar `node --test test/`, falla en Node 22).
 - Verificado en local contra los informes reales de octubre (sin subir nada): neto, cargas,
