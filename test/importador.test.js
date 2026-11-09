@@ -145,3 +145,14 @@ test('padrón del Excel de control: «Número» y «Descripción de departamento
   assert.deepEqual(Object.keys(r.filas[0]).sort(), ['departamento', 'legajo', 'nombre']);
   assert.equal(r.filas[0].departamento, 'OPERACIONES');
 });
+
+test('renumeración de legajos: solo en el mes indicado; otros meses no se tocan', () => {
+  const R = require('../js/rrhh-importador.js');
+  const enc = ['Legajo', 'Tipo de liquidacion', 'Periodo liquidado', 'Nro de concepto', 'Importe liquidado', 'Cantidad liquidada', 'Valor liquidado'];
+  const mk = per => [enc, [85, 'Mensual', per, 1000, 10, 1, 10], [5, 'Mensual', per, 1000, 20, 1, 20]];
+  const ago = R.parseResumen(mk('2026-08-01'));
+  assert.deepEqual(ago.filas.map(f => f.legajo), [1000, 5]);
+  assert.ok(ago.advertencias.some(a => a.includes('85→1000')));
+  const sep = R.parseResumen(mk('2026-09-01'));
+  assert.deepEqual(sep.filas.map(f => f.legajo), [85, 5]);
+});
