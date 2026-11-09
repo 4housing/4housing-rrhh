@@ -14,8 +14,8 @@ const filas = sql.split('\n').filter(l => /^  \('/.test(l)).map(l => {
 const clave = f => f.nro + '|' + f.empresa;
 const por = n => filas.filter(f => f.nro === n);
 
-test('catálogo: 110 conceptos, sin claves (nro, empresa) repetidas', () => {
-  assert.equal(filas.length, 110);
+test('catálogo: 111 conceptos, sin claves (nro, empresa) repetidas', () => {
+  assert.equal(filas.length, 111);
   assert.equal(new Set(filas.map(clave)).size, filas.length);
 });
 
@@ -32,11 +32,13 @@ test('catálogo: valores permitidos por el esquema oficial', () => {
   }
 });
 
-test('catálogo: 1602 se carga como costo (decisión de administración); 6501 NO está (la app debe avisar que falta)', () => {
-  assert.equal(por('1602').length, 1);
-  assert.equal(por('1602')[0].trata, 'costo');
-  assert.equal(por('1602')[0].empresa, '4H');
-  assert.equal(por('6501').length, 0);
+test('catálogo: 1602 y 6501 se cargan como costo (decisión de administración)', () => {
+  for (const n of ['1602', '6501']) {
+    assert.equal(por(n).length, 1, n);
+    assert.equal(por(n)[0].trata, 'costo', n);
+    assert.equal(por(n)[0].empresa, '4H', n);
+    assert.equal(por(n)[0].grupo, 'Haberes', n);
+  }
 });
 
 test('catálogo: tratamientos acordados del handoff §4', () => {

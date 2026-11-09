@@ -125,3 +125,7 @@ completo NO se versiona porque contiene valores de control de octubre.
   S.S. sin ANSSAL, para hablarlas con el contador.
 - Verificado solo en local con el F.931 real de octubre. Pendiente: probar contra la base real y con la URL de pdf.js en cdnjs desde el navegador.
 - **SAC (decisión):** por ahora se muestra en el mes en que se paga; después se define si se provisiona.
+
+- **Concepto 6501 (Adic. Reintegro impuestos): se carga como costo** (decisión de administración, 2026-11-09): es de una persona con licencia y se trata
+  como una ART (costo sin horas productivas). Sin regla de reparto. Con él, el cierre de octubre ya no queda frenado por conceptos sin catalogar y la línea
+  de Remuneraciones del control del F.931 coincide; quedan las diferencias de ART/LRT y de contribuciones S.S. para revisar con el contador.
