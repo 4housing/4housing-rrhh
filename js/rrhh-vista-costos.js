@@ -26,6 +26,7 @@
     ['legajo', 'Legajo', '', 'txt'], ['nombre', 'Empleado', '', 'txt'], ['departamento', 'Departamento', '', 'txt'],
     ['neto4H', 'Neto', '4H · recibo', 'n'], ['cargas', 'Cargas', '4H · recibo', 'n'], ['costo4H', 'Costo 4H', '4H · recibo', 'n'],
     ['oc', 'OC (costo)', '4H OC', 'n'],
+    ['aguinaldo', 'Aguinaldo', 'Líneas propias', 'n'], ['bajas', 'Bajas', 'Líneas propias', 'n'],
     ['bono', 'Bono proyecto', 'Bono', 'n'],
     ['cuestaSinBono', 'Cuesta sin bono', 'Cuánto cuesta', 'n'], ['cuestaTotal', 'Cuesta total', 'Cuánto cuesta', 'n'],
     ['cobra', 'Cobra en el bolsillo', 'Cuánto cobra', 'n'],
@@ -133,7 +134,7 @@
       }).join('');
       $('cs-tabla').innerHTML = rows.length
         ? '<div class="tblwrap"><table class="tbl"><thead><tr>' + head1 + '</tr><tr class="h2">' + head2 + '</tr></thead><tbody>' + body + '</tbody><tfoot><tr>' + foot + '</tr></tfoot></table></div>'
-          + '<p class="nota">Los importes se muestran sin centavos; en el detalle de cada persona y en el Excel exportado van completos. «Cobra en el bolsillo» = neto del recibo + todo lo liquidado por OC (incluye bono y descuentos, p. ej. Combo Hogar). «Cuesta» no incluye el Combo Hogar, que va a la cuenta de RRHH.</p>'
+          + '<p class="nota">Los importes se muestran sin centavos; en el detalle de cada persona y en el Excel exportado van completos. «Cobra en el bolsillo» = neto del recibo + todo lo liquidado por OC (incluye bono y descuentos, p. ej. Combo Hogar). «Cuesta» no incluye el Combo Hogar (va a la cuenta de RRHH) y sí incluye Aguinaldo y Bajas, que se muestran aparte y no entran al valor hora.</p>'
         : '<div class="empty">No hay personas que coincidan con el filtro.</div>';
     }
 
@@ -141,7 +142,7 @@
       const f = est.informe.filas.find(x => x.legajo === legajo); if (!f) return;
       const d = Informe.detalle({ filas: est.filas, catalogo, legajo });
       const filaConc = l => '<tr><td class="izq">' + esc(l.nro) + '</td><td class="izq">' + esc(l.descripcion) + '</td><td class="izq">' + esc(l.grupo || '') + '</td>'
-        + '<td class="izq">' + esc(l.trata ? (TRATA[l.trata] || l.trata) : 'PENDIENTE') + '</td><td class="' + (l.importe < 0 ? 'neg' : '') + '">' + num(l.importe, true) + '</td><td>' + (l.cantidad ? num(l.cantidad, true) : '') + '</td></tr>';
+        + '<td class="izq">' + esc((l.trata ? (TRATA[l.trata] || l.trata) : 'PENDIENTE') + (l.linea ? ' · ' + (l.linea === 'bajas' ? 'Bajas' : 'Aguinaldo') : '')) + '</td><td class="' + (l.importe < 0 ? 'neg' : '') + '">' + num(l.importe, true) + '</td><td>' + (l.cantidad ? num(l.cantidad, true) : '') + '</td></tr>';
       const tabla = emp => { const ls = d.lineas.filter(l => l.empresa === emp); return ls.length
         ? '<h4>' + (emp === '4H' ? '4H · recibo' : '4H OC · fuera del recibo') + '</h4><div class="tblwrap chico"><table class="tbl"><thead><tr><th class="izq">N°</th><th class="izq">Concepto</th><th class="izq">Grupo</th><th class="izq">Tratamiento</th><th>Importe</th><th>Cantidad</th></tr></thead><tbody>' + ls.map(filaConc).join('') + '</tbody></table></div>' : ''; };
       const h = d.horas, tipos = h ? Object.keys(h.costo) : [];
@@ -158,6 +159,8 @@
         + '<div class="kpis">'
         + '<div><span>Cuesta total</span><b>$ ' + num(f.cuestaTotal, true) + '</b></div><div><span>Cobra en el bolsillo</span><b>$ ' + num(f.cobra, true) + '</b></div>'
         + '<div><span>4H · recibo</span><b>$ ' + num(f.costo4H, true) + '</b></div><div><span>4H OC</span><b>$ ' + num(f.oc, true) + '</b></div><div><span>Bono proyecto</span><b>$ ' + num(f.bono, true) + '</b></div>'
+        + (f.aguinaldo ? '<div><span>Aguinaldo (línea propia)</span><b>$ ' + num(f.aguinaldo, true) + '</b></div>' : '')
+        + (f.bajas ? '<div><span>Bajas (línea propia)</span><b>$ ' + num(f.bajas, true) + '</b></div>' : '')
         + '</div>' + tabla('4H') + tabla('4H_OC') + horasHtml + '</div></div>';
       const cerrar = () => { $('cs-modal').innerHTML = ''; document.removeEventListener('keydown', esc_); };
       const esc_ = ev => { if (ev.key === 'Escape') cerrar(); };

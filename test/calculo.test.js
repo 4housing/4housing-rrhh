@@ -184,3 +184,55 @@ test('seed del catálogo: sin claves duplicadas y con valores válidos', () => {
   // 1602 y 6501 deben seguir sin catalogar (la app tiene que frenar el cierre)
   assert.ok(!claves.has('1602|4H') && !claves.has('6501|4H'));
 });
+
+// ---- Líneas propias: aguinaldo y bajas (decisión de administración) ----
+const CATL = [
+  { nro_concepto: '1', empresa: '4H', grupo_sistema: 'Haberes', trata: 'costo', es_hora: true, tipo_hora: 'trabajada' },
+  { nro_concepto: '30', empresa: '4H', grupo_sistema: 'Contribuciones', trata: 'costo' },
+  { nro_concepto: '10', empresa: '4H', grupo_sistema: 'Retenciones', trata: 'retencion' },
+  { nro_concepto: '50', empresa: '4H', grupo_sistema: 'Haberes', trata: null },                    // p.ej. vacaciones no gozadas: sin tratamiento propio
+  { nro_concepto: '20', empresa: '4H', grupo_sistema: 'No Remunerativo', trata: 'excluir' },
+  { nro_concepto: '100', empresa: '4H_OC', grupo_sistema: 'No Remunerativo', trata: 'costo' },
+  { nro_concepto: '101', empresa: '4H_OC', grupo_sistema: 'No Remunerativo', trata: null, linea: 'bajas' },   // gratificación final, viene por OC
+];
+const fl = (empresa, nro, importe, tipo, cantidad) => ({ empresa, legajo: 1, tipo_liquidacion: tipo || 'Mensual', nro_concepto: nro, importe, cantidad: cantidad || 0 });
+
+test('liquidación «Bajas»: cuenta como costo y como cobro, va a su línea, no entra al costo corriente y no frena el cierre', () => {
+  const r = C.calcularPeriodo([
+    fl('4H', '1', 1000, 'Mensual', 100), fl('4H', '30', 300, 'Mensual'),
+    fl('4H', '50', 100, 'Bajas'), fl('4H', '10', -10, 'Bajas'), fl('4H', '30', 30, 'Bajas'),
+  ], CATL);
+  const l = r.legajos[1];
+  assert.equal(r.cerrable, true);                       // el concepto 50 no tiene tratamiento, pero va en una liquidación de bajas
+  assert.deepEqual(r.alertas.sinTrata, []);
+  assert.equal(l.netoAcreditado, 1000 + 100 - 10);      // lo que se acredita incluye la baja
+  assert.equal(l.cargas, 10 + 300 + 30);
+  assert.equal(l.costo4H, 1300);                        // corriente: sin la baja
+  assert.equal(l.lineas.bajas, 130);                    // haberes 100 + contribuciones 30; la retención no es costo
+  assert.equal(l.lineas.aguinaldo, 0);
+  assert.equal(l.cuesta, 1300);
+  assert.equal(l.cuestaConLineas, 1430);
+  assert.equal(l.horasPagas, 100);                      // las horas de la baja no se cuentan
+});
+
+test('liquidación «Aguinaldo» va a su propia línea', () => {
+  const l = C.calcularPeriodo([fl('4H', '1', 1000, 'Mensual', 100), fl('4H', '50', 500, 'Aguinaldo')], CATL).legajos[1];
+  assert.equal(l.lineas.aguinaldo, 500);
+  assert.equal(l.lineas.bajas, 0);
+  assert.equal(l.costo4H, 1000);
+});
+
+test('concepto OC con línea en el catálogo (gratificación final) va a su línea aunque venga en una quincena', () => {
+  const l = C.calcularPeriodo([fl('4H_OC', '100', 250, 'Segunda Quincena'), fl('4H_OC', '101', 400, 'Segunda Quincena')], CATL).legajos[1];
+  assert.equal(l.bono, 250);                            // OC corriente
+  assert.equal(l.lineas.bajas, 400);
+  assert.equal(l.totalOC, 650);                         // lo cobrado por OC incluye todo
+  assert.equal(l.cuestaConLineas, 650);
+});
+
+test('en una liquidación de bajas se respeta lo explícito (adelanto excluido) y un concepto sin catalogar sigue frenando', () => {
+  const r = C.calcularPeriodo([fl('4H', '20', -50, 'Bajas'), fl('4H', '777', 5, 'Bajas')], CATL);
+  assert.equal(r.legajos[1].lineas.bajas, 0);
+  assert.deepEqual(r.alertas.sinCatalogar.map(a => a.nro_concepto), ['777']);
+  assert.equal(r.cerrable, false);
+});

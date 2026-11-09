@@ -23,9 +23,9 @@
    Siempre: Σ costo por tipo + sinHoras + directoFinDeSemana = costo total de la persona (control exacto en centavos).
    ========================================================================== */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.RRHHCostoHora = factory();
-})(typeof self !== 'undefined' ? self : this, function () {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./rrhh-calculo.js'));
+  else root.RRHHCostoHora = factory(root.RRHHCalculo);
+})(typeof self !== 'undefined' ? self : this, function (Calc) {
   'use strict';
 
   const cents = x => Math.round((Number(x) || 0) * 100);
@@ -65,12 +65,17 @@
 
   function costoLegajo(rows, cat) {
     const horas = {}, pagoDir = {};
+    const lineasPropias = { aguinaldo: 0, bajas: 0 };   // Aguinaldo y bajas: costo real que NO entra al valor hora
     let P1 = 0, P2 = 0, F = 0, C = 0, S = 0, SHab = 0, D = 0;
     const sinRegla = new Map();
     for (const f of rows) {
       const c = cat.get(String(f.nro_concepto) + '|' + f.empresa);
-      if (!c || c.trata !== 'costo') continue;               // sin catalogar, pendiente o no es costo: afuera
+      if (!c) continue;                                       // sin catalogar: afuera
+      const linea = Calc.lineaDeFila(f, c);
+      const trata = c.trata || (linea ? 'costo' : null);
+      if (trata !== 'costo') continue;                        // pendiente o no es costo: afuera
       const imp = cents(f.importe);
+      if (linea) { lineasPropias[linea] += imp; continue; }   // línea propia: se informa aparte, no entra al reparto
       if (f.empresa === '4H' && c.es_hora) {
         const t = TIPOS.includes(c.tipo_hora) ? c.tipo_hora : 'otra';
         horas[t] = (horas[t] || 0) + (Number(f.cantidad) || 0);
@@ -145,6 +150,7 @@
     return {
       horas: h, costo, valorHora, sinHorasBase,
       directoFinDeSemana: pesos(D), sinHoras: pesos(sinHorasFinal), total: pesos(total),
+      lineasPropias: { aguinaldo: pesos(lineasPropias.aguinaldo), bajas: pesos(lineasPropias.bajas) },
       sinRegla: [...sinRegla].map(([k, v]) => ({ concepto: k, importe: pesos(v) })),
       control: pesos(sumaTipos + sinHorasFinal + D - total),   // siempre 0
     };

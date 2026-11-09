@@ -31,6 +31,16 @@
     return m ? m[1] + '-' + m[2] : null;
   }
 
+  // Líneas propias (decisión de administración): lo que se liquida como «Bajas» o «Aguinaldo» cuenta como costo y como cobro,
+  // pero se muestra aparte y NO entra al valor hora (un mes con una baja o con SAC no debe distorsionar el costo de la hora).
+  // Se define por el tipo de liquidación del informe; un concepto del catálogo también puede traer su línea (columna `linea`),
+  // para lo que viene mezclado en otra liquidación (p. ej. la gratificación por liquidación final en OC).
+  const LINEAS_POR_TIPO = { 'Aguinaldo': 'aguinaldo', 'Bajas': 'bajas' };
+  const LINEAS = ['aguinaldo', 'bajas'];
+  function lineaDeFila(fila, concepto) {
+    return LINEAS_POR_TIPO[fila && fila.tipo_liquidacion] || (concepto && LINEAS.includes(concepto.linea) ? concepto.linea : null);
+  }
+
   function indexarCatalogo(lista) {
     const mapa = new Map();
     for (const c of lista || []) mapa.set(c.nro_concepto + '|' + c.empresa, c);
@@ -42,6 +52,7 @@
       haberes: 0, retenciones: 0, noRem: 0, noRemTotal: 0, contrib: 0,
       bono: 0, bonoDirecto: 0, cuentaRRHH: 0, excluidosOC: 0, directoOC: 0,
       totalOC: 0, horasPorTipo: {}, horasPagas: 0, horasProductivas: 0,
+      lineas: { aguinaldo: 0, bajas: 0 }, lineas4H: 0,
     };
   }
 
@@ -70,11 +81,13 @@
       if (f.empresa === '4H_OC') a.totalOC += imp;
       const c = cat.get(f.nro_concepto + '|' + f.empresa);
       if (!c) { anotar(sinCatalogar, f); continue; }
-      if (!c.trata) { anotar(sinTrata, f); continue; }
+      const linea = lineaDeFila(f, c);
+      const trata = c.trata || (linea ? 'costo' : null);       // las líneas propias cuentan como costo aunque el concepto no tenga tratamiento
+      if (!trata) { anotar(sinTrata, f); continue; }
 
       if (f.empresa === '4H') {
         if (!GRUPOS.includes(c.grupo_sistema)) { anotar(noSoportada, f, { motivo: 'grupo_sistema inválido' }); continue; }
-        if (c.trata === 'directo_proyecto' || c.trata === 'cuenta_rrhh') {
+        if (trata === 'directo_proyecto' || trata === 'cuenta_rrhh') {
           anotar(noSoportada, f, { motivo: 'trata ' + c.trata + ' en 4H no está definido en el handoff' });
           continue;
         }
@@ -83,9 +96,10 @@
         else if (c.grupo_sistema === 'Contribuciones') a.contrib += imp;
         else { // No Remunerativo
           a.noRemTotal += imp;
-          if (c.trata !== 'excluir') a.noRem += imp;
+          if (trata !== 'excluir') a.noRem += imp;
         }
-        if (c.es_hora && c.trata === 'costo') {
+        if (linea && trata === 'costo' && c.grupo_sistema !== 'Retenciones') { a.lineas[linea] += imp; a.lineas4H += imp; }
+        if (c.es_hora && trata === 'costo' && !linea) {
           const h = Number(f.cantidad) || 0;
           const tipo = c.tipo_hora || 'sin_tipo';
           a.horasPorTipo[tipo] = (a.horasPorTipo[tipo] || 0) + h;
@@ -95,13 +109,13 @@
           if (productiva) a.horasProductivas += h;
         }
       } else { // 4H_OC: se decide solo por trata
-        if (c.trata === 'costo') {
-          a.bono += imp;
-          if (c.prorrateo === 'directo') a.directoOC += imp;
-        } else if (c.trata === 'directo_proyecto') a.bonoDirecto += imp;
-        else if (c.trata === 'cuenta_rrhh') a.cuentaRRHH += imp;
-        else if (c.trata === 'excluir') a.excluidosOC += imp;
-        else anotar(noSoportada, f, { motivo: 'trata ' + c.trata + ' en OC no está definido en el handoff' });
+        if (trata === 'costo') {
+          if (linea) a.lineas[linea] += imp;                        // línea propia: no es costo corriente ni entra al valor hora
+          else { a.bono += imp; if (c.prorrateo === 'directo') a.directoOC += imp; }
+        } else if (trata === 'directo_proyecto') a.bonoDirecto += imp;
+        else if (trata === 'cuenta_rrhh') a.cuentaRRHH += imp;
+        else if (trata === 'excluir') a.excluidosOC += imp;
+        else anotar(noSoportada, f, { motivo: 'trata ' + trata + ' en OC no está definido en el handoff' });
       }
     }
 
@@ -109,8 +123,9 @@
     for (const [leg, a] of acc) {
       const neto = a.haberes + a.retenciones + a.noRemTotal;
       const cargas = -a.retenciones + a.contrib;
-      const costo4H = a.haberes + a.noRem + a.contrib;
+      const costo4H = a.haberes + a.noRem + a.contrib - a.lineas4H;     // costo corriente: sin aguinaldo ni bajas
       const cuesta = costo4H + a.bono;
+      const lineasTotal = a.lineas.aguinaldo + a.lineas.bajas;
       const horasHoras = x => Object.fromEntries(Object.entries(x).map(([k, v]) => [k, r2(v)]));
       legajos[leg] = {
         legajo: leg,
@@ -124,7 +139,9 @@
         // [A DEFINIR en el handoff] si "cobra" incluye Bono Montaje y descuento del combo.
         // Acá va la fórmula literal de §5; bonoDirecto y cuentaRRHH quedan aparte.
         cobra: pesos(neto + a.bono),
-        cuesta: pesos(cuesta),
+        cuesta: pesos(cuesta),                                   // corriente: sin líneas propias (es la base del valor hora)
+        lineas: { aguinaldo: pesos(a.lineas.aguinaldo), bajas: pesos(a.lineas.bajas) },
+        cuestaConLineas: pesos(cuesta + lineasTotal),
         pctCcssNeto: neto ? cargas / neto : null,
         pctCcssCosto: costo4H ? cargas / costo4H : null,
         horasPorTipo: horasHoras(a.horasPorTipo),
@@ -222,6 +239,6 @@
              ok: lineas.every(l => l.ok) && empleados.ok && !sinCatalogar.length };
   }
 
-  return { calcularPeriodo, indexarCatalogo, controlHoras, controlBono, controlPeriodo,
+  return { calcularPeriodo, indexarCatalogo, lineaDeFila, LINEAS, controlHoras, controlBono, controlPeriodo,
            controlF931, periodoDe, MAPA_F931, TRATA_VALIDAS, GRUPOS };
 });
