@@ -254,6 +254,6 @@
              ok: lineas.every(l => l.informativo || l.ok) && empleados.ok && !sinCatalogar.length };
   }
 
-  return { calcularPeriodo, indexarCatalogo, lineaDeFila, LINEAS, controlHoras, controlBono, controlPeriodo,
+  return { calcularPeriodo, indexarCatalogo, lineaDeFila, tipoBono, LINEAS, controlHoras, controlBono, controlPeriodo,
            controlF931, periodoDe, MAPA_F931, TRATA_VALIDAS, GRUPOS };
 });

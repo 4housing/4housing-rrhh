@@ -12,6 +12,8 @@ Orden: `06_rrhh_reemplazo.sql` → `rrhh_00_sector.sql` (opcional) → `rrhh_01_
 | `rrhh_01_tablas.sql` | 11 tablas, permisos por sección (`liquidacion`, `costos`, `config`; sin lista guardada no se ve nada), RLS e importación. |
 | `rrhh_02_catalogo_conceptos.sql` | Catálogo de 111 conceptos (tratamiento y prorrateo). 15 quedan PENDIENTES (`trata` nula: bloquean el cierre). 1602 y 6501 se cargaron como costo el 2026-11-09. No pisa lo editado a mano. |
 | `rrhh_03_lectura_planificacion.sql` | Función de SOLO LECTURA `rrhh_planificacion_mes('AAAA-MM')`: devuelve en un json el detalle diario, la no disponibilidad, los feriados y la supervisión de planificación. Solo para dirección o quien tenga Ver en «costos». No devuelve costos, presupuestos ni nombres. |
+| `rrhh_04_lineas_propias.sql` | Aguinaldo y bajas como líneas propias. |
+| `rrhh_05_bonos.sql` | Bonos de proyecto (histórico): `rrhh_bonos`, `rrhh_bonos_persona` y `rrhh_importar_bonos()`. Sección «costos». |
 
 ## Provisorio — reemplazado, NO volver a correr
 `01_rrhh_esquema.sql`, `02_rrhh_rls.sql`, `03_rrhh_catalogo_seed.sql`, `04_rrhh_importacion.sql`, `05_rrhh_secciones.sql`.
