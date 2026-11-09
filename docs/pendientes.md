@@ -95,3 +95,15 @@ completo NO se versiona porque contiene valores de control de octubre.
 - **Concepto 1602 (Premio Variable Voluntario): se carga como costo.** Sin regla de reparto todavía (el motor lo reparte por horas pagas y lo lista).
 - Sigue pendiente: 6501 (Adic. Reintegro impuestos; no es de un operario) frena el cierre hasta que administración decida su tratamiento.
 - Planificación: `planificacion_valor_hora_hist` guarda el mes como `AAAA-MM` y tiene UNIQUE (persona_id, mes): publicar el valor hora = upsert por persona y mes.
+
+## Pedidos de la usuaria — 2026-11-09 (para seguir)
+- **Costo por empleado (hecho, Vista 1 «Mes»):** una fila por persona y mes con 4H, 4H OC, bono, «cuesta» con y sin bono, «cobra en el bolsillo»,
+  las columnas del Excel de control y el detalle por concepto; filtros por mes, departamento y búsqueda; exportar a Excel.
+- **Vista 2 «Mes a mes»:** personas (o departamentos) × meses con una columna Total que es la SUMA de los meses (no acumulado corrido),
+  con selector de medida. Requiere cargar los meses anteriores.
+- **Control F.931 en la app:** hoy la app NO pide cargarlo y debe pedirlo. Carga manual de los datos del mes (rem. 1, contribuciones S.S. y O.S.,
+  L.R.T., seguro de vida, aportes, empleados; tabla `rrhh_f931`) y tabla de control liquidación vs F.931 con tolerancia configurable.
+  El cálculo del control ya existe en `js/rrhh-calculo.js` (`controlF931`).
+- **Histórico:** se recrea trabajando con la solapa «Resumen» de los Excel de control de cada mes. Los bonos se liquidaban aparte
+  (archivo BONOS 2025-2026: pagos por proyecto, persona y período, con asientos contables); se usará para reconstruir el bono histórico.
+- **Imputación (informe C):** mano de obra directa a proyectos según planificación; administración no se imputa a proyectos, va al concepto de gasto general.
