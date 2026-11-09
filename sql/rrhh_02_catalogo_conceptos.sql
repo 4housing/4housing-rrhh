@@ -6,7 +6,7 @@
 -- informes de octubre (empresa y grupo del sistema de cada concepto) y las reglas de tratamiento del handoff §4 y §9.1.
 -- Los conceptos que no aparecieron en octubre llevan la empresa y el grupo DEDUCIDOS (55xxx = OC; grupo por agrupador).
 --
--- trata NULL = PENDIENTE de definir (SAC, indemnizaciones, vacaciones no gozadas, bonos de posventa y algunos dudosos):
+-- trata NULL = PENDIENTE de definir (SAC, indemnizaciones, vacaciones no gozadas, y algunos dudosos):
 -- la app los marca «sin tratamiento» y BLOQUEA EL CIERRE si aparecen en un período. Se completan desde la app/SQL cuando
 -- administración decida.
 -- 1602 (Premio Variable Voluntario) se carga como COSTO por decisión de administración (2026-11-09). Sin regla de reparto
@@ -98,9 +98,9 @@ values
   ('55014','4H_OC','Horas extras al 50%','No Remunerativo','COPAR','costo',false,null,'directo'),
   ('55015','4H_OC','Bono Montaje - ADM','No Remunerativo','SUELDO','directo_proyecto',false,null,null),
   ('55016','4H_OC','Bono Montaje - ADM','No Remunerativo','SUELDO','directo_proyecto',false,null,null),
-  ('55020','4H_OC','Bono Posventa - ADM','No Remunerativo','BONOS',null,false,null,null),
+  ('55020','4H_OC','Bono Posventa - ADM','No Remunerativo','BONOS','directo_proyecto',false,null,null),
   ('55025','4H_OC','Bono Montaje - OPE','No Remunerativo','SUELDO','directo_proyecto',false,null,null),
-  ('55029','4H_OC','Bono Posventa - OPE','No Remunerativo','BONOS',null,false,null,null),
+  ('55029','4H_OC','Bono Posventa - OPE','No Remunerativo','BONOS','directo_proyecto',false,null,null),
   ('55030','4H_OC','Feriado Trabajado','No Remunerativo','SUELDO','costo',false,null,'directo'),
   ('55035','4H_OC','Descuento - Combo Hogar','No Remunerativo','RRHH','cuenta_rrhh',false,null,null),
   ('55041','4H_OC','Descuento - Adelanto de Coparticipación','No Remunerativo','COPAR','excluir',false,null,null),

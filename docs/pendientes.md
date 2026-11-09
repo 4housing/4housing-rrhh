@@ -16,7 +16,7 @@ completo NO se versiona porque contiene valores de control de octubre.
 3. Bono Montaje: ¿a qué proyecto se imputa y de dónde sale el dato?
 4. Legajo 110 (mensualizado): regla de horas.
 5. 7b: pagos fijos mensuales con horas trabajadas (i) o prorrateados entre todas las pagas (ii).
-6. Posventa 55020/55029, SAC, indemnizaciones, vacaciones no gozadas.
+6. SAC, indemnizaciones, vacaciones no gozadas.
 7. Diferencia de contribuciones S.S. contra F.931 y su tolerancia.
 
 ## Para verificar en Supabase antes de ejecutar el SQL
