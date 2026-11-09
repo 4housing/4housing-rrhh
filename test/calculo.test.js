@@ -236,3 +236,33 @@ test('en una liquidación de bajas se respeta lo explícito (adelanto excluido) 
   assert.deepEqual(r.alertas.sinCatalogar.map(a => a.nro_concepto), ['777']);
   assert.equal(r.cerrable, false);
 });
+
+// ---- Control F.931: líneas informativas ----
+test('F.931: los aportes (retenciones) y la referencia sin ANSSAL son informativos y no bloquean', () => {
+  const cat3 = [
+    { nro_concepto: '1', empresa: '4H', grupo_sistema: 'Haberes', trata: 'costo' },
+    { nro_concepto: '20000', empresa: '4H', grupo_sistema: 'Retenciones', trata: 'retencion' },
+    { nro_concepto: '20010', empresa: '4H', grupo_sistema: 'Retenciones', trata: 'retencion' },
+    { nro_concepto: '20030', empresa: '4H', grupo_sistema: 'Retenciones', trata: 'retencion' },
+    { nro_concepto: '80000', empresa: '4H', grupo_sistema: 'Contribuciones', trata: 'costo' },
+    { nro_concepto: '80040', empresa: '4H', grupo_sistema: 'Contribuciones', trata: 'costo' },
+    { nro_concepto: '80050', empresa: '4H', grupo_sistema: 'Contribuciones', trata: 'costo' },
+    { nro_concepto: '80100', empresa: '4H', grupo_sistema: 'Contribuciones', trata: 'costo' },
+    { nro_concepto: '80200', empresa: '4H', grupo_sistema: 'Contribuciones', trata: 'costo' },
+  ];
+  const filas = [['1', 1000], ['20000', -80], ['20010', -20], ['20030', -30], ['80000', 200], ['80040', 50], ['80050', 60], ['80100', 40], ['80200', 2]]
+    .map(([n, imp]) => ({ empresa: '4H', legajo: 1, tipo_liquidacion: 'Mensual', nro_concepto: n, importe: imp, cantidad: 0 }));
+  // F.931 que coincide en lo que importa, pero con aportes distintos y contribuciones S.S. = 200 (sin ANSSAL)
+  const r = C.controlF931(filas, cat3, { remuneracion_1: 1000, contrib_ss: 200, contrib_os: 60, lrt: 40, scvo: 2, aportes_ss: 90, aportes_os: 31, empleados: 1 }, { tolerancia: 0.5 });
+  const por = Object.fromEntries(r.lineas.map(l => [l.clave, l]));
+  assert.equal(por.contrib_ss.ok, false);                // con ANSSAL (250) difiere de 200
+  assert.equal(por.contrib_ss_sin_anssal.liquidacion, 200);
+  assert.equal(por.contrib_ss_sin_anssal.ok, true);      // sin ANSSAL coincide
+  assert.equal(por.contrib_ss_sin_anssal.informativo, true);
+  assert.equal(por.aportes_ss.liquidacion, 100);         // 80 + 20, en positivo
+  assert.equal(por.aportes_ss.diferencia, 10);
+  assert.equal(por.aportes_os.diferencia, -1);
+  assert.equal(r.ok, false);                             // bloquea por contrib_ss, no por las informativas
+  const sinContrib = C.controlF931(filas, cat3, { remuneracion_1: 1000, contrib_ss: 250, contrib_os: 60, lrt: 40, scvo: 2, aportes_ss: 1, aportes_os: 1, empleados: 1 }, { tolerancia: 0.5 });
+  assert.equal(sinContrib.ok, true);                     // aportes muy distintos pero informativos: no bloquean
+});
