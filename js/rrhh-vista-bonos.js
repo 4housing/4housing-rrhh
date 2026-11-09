@@ -64,7 +64,7 @@
     }
 
     function pintarTabs() {
-      const tabs = [['bono', 'Por bono'], ['proyecto', 'Por proyecto'], ['persona', 'Por persona']].concat(verLiq ? [['liq', 'Liquidado por mes']] : []);
+      const tabs = [['bono', 'Por bono'], ['proyecto', 'Por proyecto'], ['persona', 'Por persona'], ['periodo', 'Histórico por período']].concat(verLiq ? [['liq', 'Liquidado por mes']] : []);
       $('bn-tabs').innerHTML = tabs.map(([k, t]) => '<button type="button" class="btn' + (est.vista === k ? '' : ' sec') + '" data-v="' + k + '">' + esc(t) + '</button>').join('') + '<span class="sp"></span><button type="button" class="btn" id="bn-export">Exportar a Excel</button>';
     }
 
@@ -102,6 +102,16 @@
         ], { pie: rows => ['TOTAL · ' + rows.length + ' proyectos', '', num(rows.reduce((s, f) => s + f.bonos, 0)), '', num(rows.reduce((s, f) => s + f.total, 0)), num(rows.reduce((s, f) => s + f.caja, 0)), '', ''] });
         grid.render(filas);
         $('bn-nota').textContent = 'Los bonos de un mismo proyecto se suman (p. ej. «COMARCA RESTO - 1», «- 2»…). «Personas» cuenta personas distintas.';
+      } else if (est.vista === 'periodo') {
+        const filas = Bonos.resumenPorPeriodo(est.bonos, est.personas);
+        armar('bonos-periodo', [
+          colTxt('etiqueta', 'Período (como en la planilla)', { sticky: true, min: 210, valor: f => f.desde || '9999' + f.etiqueta }),
+          colNum('bonos', 'Bonos'), colNum('personas', 'Personas'), colNum('montaje', 'Montaje'), colNum('posventa', 'Posventa'),
+          colNum('produccion', 'Producción'), colNum('sin_discriminar', 'Sin discriminar'), colNum('total', 'Total'),
+        ], { pie: rows => ['TOTAL · ' + rows.length + ' períodos', num(rows.reduce((s, f) => s + f.bonos, 0)), '', num(rows.reduce((s, f) => s + f.montaje, 0)), num(rows.reduce((s, f) => s + f.posventa, 0)),
+          num(rows.reduce((s, f) => s + f.produccion, 0)), num(rows.reduce((s, f) => s + f.sin_discriminar, 0)), num(rows.reduce((s, f) => s + f.total, 0))] });
+        grid.render(filas);
+        $('bn-nota').textContent = 'Histórico del libro de bonos agrupado por el período que trae la planilla. Un período como «202504/202505» es un bono pagado en dos meses: no se parte por mes porque la planilla no indica cuánto corresponde a cada uno. Lo que se liquidó por recibo (desde el sistema) está en «Liquidado por mes».';
       } else if (est.vista === 'persona') {
         const filas = Bonos.detallePersonas(est.bonos, est.personas, est.empleados);
         armar('bonos-persona', [
@@ -120,7 +130,7 @@
           colNum('montaje', 'Montaje'), colNum('posventa', 'Posventa'), colNum('otro', 'Otros (sin discriminar)'), colNum('total', 'Total liquidado'), colNum('personas', 'Personas'),
         ], { pie: rows => ['TOTAL', num(rows.reduce((s, f) => s + f.montaje, 0)), num(rows.reduce((s, f) => s + f.posventa, 0)), num(rows.reduce((s, f) => s + f.otro, 0)), num(rows.reduce((s, f) => s + f.total, 0)), ''] });
         grid.render(filas);
-        $('bn-nota').textContent = 'Lo liquidado en la liquidación OC por conceptos de bono de proyecto (Montaje, Posventa y otros), mes por mes. Todavía no se asigna a proyecto: eso se agrega en el próximo paso, al importar cada mes.';
+        $('bn-nota').textContent = 'Lo liquidado en la liquidación OC por conceptos de bono de proyecto (Montaje, Posventa y otros), mes por mes. Solo aparecen los meses que importaste con esos conceptos en la liquidación; el histórico anterior (planilla) está en «Histórico por período». Todavía no se asigna a proyecto: eso se agrega en el próximo paso.';
       }
     }
 
