@@ -122,3 +122,15 @@ test('repartir y redondearSuma', () => {
   const r = H.redondearSuma({ a: 33.4, b: 33.3, c: 33.3 }, 100);
   assert.equal(r.a + r.b + r.c, 100);
 });
+
+test('aguinaldo y bajas se informan aparte y NO entran al valor hora ni al reparto', () => {
+  const cat2 = [...CAT, c('50', '4H', { grupo_sistema: 'Haberes', trata: null }), c('31', '4H', { grupo_sistema: 'Contribuciones', prorrateo: 'cargas' })];
+  const filas = [f('4H', '1', 1000, 100), f('4H', '13', 300),
+                 { ...f('4H', '50', 700, 0), tipo_liquidacion: 'Bajas' }, { ...f('4H', '13', 100, 0), tipo_liquidacion: 'Bajas' },
+                 { ...f('4H', '50', 200, 0), tipo_liquidacion: 'Aguinaldo' }];
+  const r = H.calcular(filas, cat2).legajos[1];
+  assert.equal(r.total, 1300);                           // solo lo corriente: 1000 + 300
+  cerca(r.valorHora.trabajada, 13);                      // (1000 + 300) / 100 horas, sin la baja
+  assert.deepEqual(r.lineasPropias, { aguinaldo: 200, bajas: 800 });
+  assert.equal(r.control, 0);
+});

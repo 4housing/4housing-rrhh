@@ -5,12 +5,14 @@
    Por persona y mes:
      neto4H            lo que se acredita por el recibo (haberes + retenciones + no rem. con adelantos). Es el «Neto» del Excel.
      cargas            retenciones al empleado + contribuciones patronales. Es el «Cargas» del Excel.
-     costo4H           haberes + no remunerativo (sin adelantos) + contribuciones patronales   [4H]
+     costo4H           haberes + no remunerativo (sin adelantos) + contribuciones patronales   [4H] (corriente: sin aguinaldo ni bajas)
+     aguinaldo, bajas  líneas propias: lo liquidado como «Aguinaldo» o «Bajas» (con sus contribuciones). Cuenta como costo y como cobro,
+                       pero va aparte y NO entra al valor hora
      oc                lo de la liquidación OC que es costo (coparticipación, sábados, extras, comisiones, adicionales)   [4H OC]
      bono              bonos de proyecto (Bono Montaje y similares, trata = directo_proyecto): se imputan directo al proyecto
      cuentaRRHH        Combo Hogar, cochera, viáticos: van a la cuenta Recursos Humanos, no son costo del operario
      ocTotal           TODO lo liquidado por OC, con signo (es la columna «Bono» del Excel de control)
-     cuestaSinBono     costo4H + oc
+     cuestaSinBono     costo4H + oc + aguinaldo + bajas
      cuestaTotal       cuestaSinBono + bono
      cobra             lo que la persona recibe en el bolsillo = neto4H + ocTotal (incluye bono y los descuentos OC, p.ej. Combo Hogar)
    Como el Excel (para comparar):
@@ -25,7 +27,7 @@
   'use strict';
 
   const r2 = x => Math.round(x * 100) / 100;
-  const CAMPOS = ['neto4H', 'cargas', 'costo4H', 'oc', 'bono', 'cuentaRRHH', 'ocTotal',
+  const CAMPOS = ['neto4H', 'cargas', 'costo4H', 'oc', 'aguinaldo', 'bajas', 'bono', 'cuentaRRHH', 'ocTotal',
                   'cuestaSinBono', 'cuestaTotal', 'cobra', 'costoExcel', 'totalCobradoExcel'];
   const div = (a, b) => (b ? a / b : null);
 
@@ -61,8 +63,9 @@
         departamento: p ? p.departamento : null,
         enPadron: !!p,
         neto4H: a.netoAcreditado, cargas: a.cargas, costo4H: a.costo4H,
-        oc: a.bono, bono: a.bonoDirecto, cuentaRRHH: a.cuentaRRHH, ocTotal: a.totalOC,
-        cuestaSinBono: a.cuesta, cuestaTotal: r2(a.cuesta + a.bonoDirecto),
+        oc: a.bono, aguinaldo: a.lineas.aguinaldo, bajas: a.lineas.bajas,
+        bono: a.bonoDirecto, cuentaRRHH: a.cuentaRRHH, ocTotal: a.totalOC,
+        cuestaSinBono: a.cuestaConLineas, cuestaTotal: r2(a.cuestaConLineas + a.bonoDirecto),
         cobra: r2(a.netoAcreditado + a.totalOC),
         costoExcel: r2(a.netoAcreditado + a.cargas + a.totalOC),
         totalCobradoExcel: r2(a.netoAcreditado + a.totalOC),
@@ -90,9 +93,10 @@
     const lineas = new Map();
     for (const f of mios) {
       const c = cat.get(String(f.nro_concepto) + '|' + f.empresa);
-      const k = f.empresa + '|' + f.nro_concepto;
-      const l = lineas.get(k) || { empresa: f.empresa, nro: String(f.nro_concepto), descripcion: c ? c.descripcion : '(sin catalogar)',
-                                  grupo: c ? c.grupo_sistema : null, trata: c ? c.trata : null, prorrateo: c ? c.prorrateo : null, importe: 0, cantidad: 0 };
+      const linea = c ? C.lineaDeFila(f, c) : null;
+      const k = f.empresa + '|' + f.nro_concepto + '|' + (linea || '');
+      const l = lineas.get(k) || { empresa: f.empresa, nro: String(f.nro_concepto), descripcion: c ? c.descripcion : '(sin catalogar)', linea,
+                                  grupo: c ? c.grupo_sistema : null, trata: c ? (c.trata || (linea ? 'costo' : null)) : null, prorrateo: c ? c.prorrateo : null, importe: 0, cantidad: 0 };
       l.importe += Math.round((Number(f.importe) || 0) * 100);
       l.cantidad += Number(f.cantidad) || 0;
       lineas.set(k, l);
@@ -101,7 +105,7 @@
     const grupos = { 'Haberes': 0, 'No Remunerativo': 1, 'Retenciones': 2, 'Contribuciones': 3 };   // como en el recibo
     const og = g => (g in grupos ? grupos[g] : 9);
     const out = [...lineas.values()].map(l => ({ ...l, importe: l.importe / 100, cantidad: r2(l.cantidad) }))
-      .sort((a, b) => (orden[a.empresa] - orden[b.empresa]) || (og(a.grupo) - og(b.grupo)) || Number(a.nro) - Number(b.nro));
+      .sort((a, b) => (orden[a.empresa] - orden[b.empresa]) || (og(a.grupo) - og(b.grupo)) || Number(a.nro) - Number(b.nro) || String(a.linea || '').localeCompare(String(b.linea || '')));
     const horas = (H.calcular(mios, cat).legajos[legajo]) || null;
     return { lineas: out, horas };
   }

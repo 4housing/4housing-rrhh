@@ -65,3 +65,16 @@ test('catálogo: prorrateos de §9.1 y sábados por lo liquidado (opción A)', (
   assert.equal(pro('80300', '4H'), 'fijo_mensual');
   assert.equal(pro('80000', '4H'), 'cargas');
 });
+
+test('líneas propias: el SQL 04 marca aguinaldo y bajas con tratamiento costo y no toca otros conceptos', () => {
+  const s4 = fs.readFileSync(path.join(__dirname, '../sql/rrhh_04_lineas_propias.sql'), 'utf8');
+  const marcados = [...s4.matchAll(/set linea = '(aguinaldo|bajas)'[\s\S]*?where nro_concepto in \(([^)]*)\)/g)]
+    .map(m => ({ linea: m[1], nros: m[2].match(/'(\d+)'/g).map(x => x.replace(/'/g, '')) }));
+  assert.deepEqual(marcados.map(m => m.linea), ['aguinaldo', 'bajas']);
+  const todos = marcados.flatMap(m => m.nros);
+  assert.equal(new Set(todos).size, todos.length);                       // sin repetidos
+  for (const n of todos) assert.ok(filas.some(f => f.nro === n), 'concepto inexistente en el catálogo: ' + n);
+  assert.ok(marcados[1].nros.includes('55500'));                          // la gratificación final llega por OC
+  assert.ok(!todos.includes('1602'));
+  assert.match(s4, /add column if not exists linea/);
+});

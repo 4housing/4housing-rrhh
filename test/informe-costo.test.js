@@ -114,3 +114,29 @@ test('el valor hora de la hora trabajada sale del motor por tipo de hora; sin ho
   assert.equal(sin.valorHoraTrabajada, null);
   assert.equal(sin.sinHoras, 300);
 });
+
+test('aguinaldo y bajas: columnas propias; entran al «cuesta» y al «cobra» pero no al costo 4H corriente', () => {
+  const cat2 = [...CAT, c('50', '4H', { grupo_sistema: 'Haberes', trata: null }), c('105', '4H_OC', { grupo_sistema: 'No Remunerativo', trata: null, linea: 'bajas' })];
+  const filas = [f('4H', 1, '1', 1000, 100), f('4H', 1, '30', 300),
+                 { ...f('4H', 1, '50', 500), tipo_liquidacion: 'Bajas' }, { ...f('4H', 1, '30', 150), tipo_liquidacion: 'Bajas' },
+                 { ...f('4H', 1, '50', 200), tipo_liquidacion: 'Aguinaldo' },
+                 f('4H_OC', 1, '105', 40)];
+  const r = I.construir({ filas, catalogo: cat2, empleados: EMP }).filas[0];
+  assert.equal(r.costo4H, 1300);                      // corriente
+  assert.equal(r.bajas, 500 + 150 + 40);              // haberes + contribuciones de la baja + gratificación OC
+  assert.equal(r.aguinaldo, 200);
+  assert.equal(r.cuestaSinBono, 1300 + 690 + 200);
+  assert.equal(r.cuestaTotal, r.cuestaSinBono);       // sin bono de proyecto
+  assert.equal(r.cobra, r.neto4H + r.ocTotal);        // cobra incluye todo lo acreditado y lo cobrado por OC
+  assert.equal(r.neto4H, 1000 + 500 + 200);
+});
+
+test('detalle: un mismo concepto en la liquidación corriente y en la de bajas aparece en dos líneas, la segunda marcada', () => {
+  const cat2 = [...CAT, c('99', '4H', { grupo_sistema: 'No Remunerativo' })];
+  const filas = [f('4H', 1, '99', 1), { ...f('4H', 1, '99', 2), tipo_liquidacion: 'Bajas' }];
+  const d = I.detalle({ filas, catalogo: cat2, legajo: 1 });
+  const l99 = d.lineas.filter(l => l.nro === '99');
+  assert.equal(l99.length, 2);
+  assert.deepEqual(l99.map(l => l.linea), [null, 'bajas']);                 // primero la corriente, después la de bajas
+  assert.equal(l99.find(l => l.linea === 'bajas').importe, 2);
+});

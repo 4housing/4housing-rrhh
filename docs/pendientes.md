@@ -107,3 +107,12 @@ completo NO se versiona porque contiene valores de control de octubre.
 - **Histórico:** se recrea trabajando con la solapa «Resumen» de los Excel de control de cada mes. Los bonos se liquidaban aparte
   (archivo BONOS 2025-2026: pagos por proyecto, persona y período, con asientos contables); se usará para reconstruir el bono histórico.
 - **Imputación (informe C):** mano de obra directa a proyectos según planificación; administración no se imputa a proyectos, va al concepto de gasto general.
+
+## Líneas propias: aguinaldo y bajas (decisión de administración, 2026-11-09)
+- Lo liquidado como tipo «Bajas» o «Aguinaldo» (y los conceptos marcados con `linea` en el catálogo, p. ej. la gratificación final por OC)
+  cuenta como **costo y como cobro**, se muestra en columnas propias y **no entra al valor hora**.
+- Se define por el TIPO DE LIQUIDACIÓN del informe (no hace falta catalogar cada concepto de una baja). El SQL `rrhh_04_lineas_propias.sql`
+  agrega la columna `linea` para lo que viene mezclado en otra liquidación.
+- Verificado solo en local con los Excel de control de septiembre y octubre: septiembre coincide con la hoja `Project` en todos los operarios y su cierre
+  queda sin bloqueos; octubre no cambia.
+- Sigue abierto: el SAC (aguinaldo) se provisiona 1/12 por mes o se imputa al pagarse.
