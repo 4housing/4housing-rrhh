@@ -53,8 +53,12 @@ test('catálogo: tratamientos acordados del handoff §4', () => {
   assert.equal(trata('99999', '4H_OC'), 'costo');
 });
 
-test('catálogo: SAC, bajas y posventa quedan PENDIENTES (trata nula: bloquean el cierre)', () => {
-  for (const n of ['10000', '10010', '50000', '50150', '55020', '55029']) assert.equal(por(n)[0].trata, null, n);
+test('catálogo: SAC y bajas quedan PENDIENTES (trata nula: bloquean el cierre)', () => {
+  for (const n of ['10000', '10010', '50000', '50150']) assert.equal(por(n)[0].trata, null, n);
+});
+
+test('catálogo: posventa es bono de proyecto, igual que montaje (decisión de administración)', () => {
+  for (const n of ['55020', '55029', '55015', '55016', '55025']) assert.equal(por(n)[0].trata, 'directo_proyecto', n);
 });
 
 test('catálogo: prorrateos de §9.1 y sábados por lo liquidado (opción A)', () => {
