@@ -10,7 +10,7 @@ Orden: `06_rrhh_reemplazo.sql` → `rrhh_00_sector.sql` (opcional) → `rrhh_01_
 | `06_rrhh_reemplazo.sql` | Borra el esquema provisorio. **Se frena solo** si hay datos cargados o si el oficial ya está instalado. |
 | `rrhh_00_sector.sql` | Agrega `'rrhh'` a `sector_portal` si falta (hoy ya existe: no hace nada). |
 | `rrhh_01_tablas.sql` | 11 tablas, permisos por sección (`liquidacion`, `costos`, `config`; sin lista guardada no se ve nada), RLS e importación. |
-| `rrhh_02_catalogo_conceptos.sql` | Catálogo de 110 conceptos (tratamiento y prorrateo). 15 quedan PENDIENTES (`trata` nula: bloquean el cierre). 6501 no se carga a propósito (1602 se cargó como costo el 2026-11-09). No pisa lo editado a mano. |
+| `rrhh_02_catalogo_conceptos.sql` | Catálogo de 111 conceptos (tratamiento y prorrateo). 15 quedan PENDIENTES (`trata` nula: bloquean el cierre). 1602 y 6501 se cargaron como costo el 2026-11-09. No pisa lo editado a mano. |
 | `rrhh_03_lectura_planificacion.sql` | Función de SOLO LECTURA `rrhh_planificacion_mes('AAAA-MM')`: devuelve en un json el detalle diario, la no disponibilidad, los feriados y la supervisión de planificación. Solo para dirección o quien tenga Ver en «costos». No devuelve costos, presupuestos ni nombres. |
 
 ## Provisorio — reemplazado, NO volver a correr

@@ -11,7 +11,8 @@
 -- administración decida.
 -- 1602 (Premio Variable Voluntario) se carga como COSTO por decisión de administración (2026-11-09). Sin regla de reparto
 -- todavía (prorrateo nulo): el motor lo reparte por horas pagas y lo lista para que se defina.
--- 6501 (Adic. Reintegro impuestos) NO se carga a propósito: está sin catalogar en el Excel y la app debe avisar.
+-- 6501 (Adic. Reintegro impuestos) se carga como COSTO por decisión de administración (2026-11-09): es de una persona con licencia
+-- y se trata como una ART (costo sin horas productivas). Sin regla de reparto (prorrateo nulo).
 -- No pisa lo que ya esté cargado o editado (on conflict do nothing).
 -- =====================================================================
 
@@ -53,6 +54,7 @@ values
   ('6030','4H','Adicional A Cta. Fut. Aumentos','Haberes','SUELDO','costo',false,null,null),
   ('6040','4H','Licencia sin goce de sueldo','Haberes','SUELDO','costo',false,null,null),
   ('6800','4H','Hs extras 50%','Haberes','SUELDO','costo',true,'extra50','directo'),
+  ('6501','4H','Adic. Reintegro impuestos','Haberes','SUELDO','costo',false,null,null),
   ('8000','4H','Plus Vacacional','Haberes','VACACIONES','costo',false,null,null),
   ('8005','4H','Licencia por Matrimonio','Haberes','SUELDO','costo',true,'justificada','directo'),
   ('10000','4H','SAC','Haberes','SUELDO',null,false,null,null),
