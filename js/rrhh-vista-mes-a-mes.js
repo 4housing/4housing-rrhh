@@ -47,7 +47,7 @@
     if (!periodos.length) { $main.innerHTML = '<div class="empty">Todavía no hay meses importados. Importá los informes del mes en «Importar informes».</div>'; return; }
 
     const opts = periodos.map(p => '<option value="' + esc(p.periodo) + '">' + esc(largo(p.periodo)) + '</option>').join('');
-    const est = { desde: periodos[0].periodo, hasta: periodos[periodos.length - 1].periodo, medida: 'costo', porDepto: false, depto: '', texto: '', informes: {}, lista: [] };
+    const est = { sinBonos: [], desde: periodos[0].periodo, hasta: periodos[periodos.length - 1].periodo, medida: 'costo', porDepto: false, depto: '', texto: '', informes: {}, lista: [] };
     $main.innerHTML = `
       <div class="barra">
         <label>Ver<select id="mm-medida">${Object.entries(MesAMes.MEDIDAS).map(([k, m]) => '<option value="' + k + '">' + esc(m.titulo) + '</option>').join('')}</select></label>
@@ -56,6 +56,11 @@
         <label>Departamento<select id="mm-depto"><option value="">Todos</option></select></label>
         <label>Agrupar<select id="mm-agrupar"><option value="">Por empleado</option><option value="1">Por departamento</option></select></label>
         <label>Buscar<input type="search" id="mm-buscar" placeholder="Legajo o nombre" autocomplete="off"></label>
+        <fieldset class="bonos-sel"><legend>Incluir bonos de proyecto</legend>
+          <label><input type="checkbox" data-bono="montaje" checked> Montaje</label>
+          <label><input type="checkbox" data-bono="posventa" checked> Posventa</label>
+          <label><input type="checkbox" data-bono="otro" checked> Otros (sin discriminar)</label>
+        </fieldset>
         <span class="sp"></span>
         <button class="btn" id="mm-export" type="button">Exportar a Excel</button>
       </div>
@@ -91,7 +96,7 @@
       $('mm-alertas').innerHTML = msgs.length ? '<div class="alertas">' + msgs.map(([k, t]) => '<div class="est ' + k + '">' + esc(t) + '</div>').join('') + '</div>' : '';
     }
 
-    const calcular = () => MesAMes.matriz(est.informes, est.lista, { medida: est.medida, porDepto: false, depto: est.depto, texto: est.texto });
+    const calcular = () => MesAMes.matriz(est.informes, est.lista, { medida: est.medida, porDepto: false, depto: est.depto, texto: est.texto, sinBonos: est.sinBonos });
     const marca = p => ((periodos.find(x => x.periodo === p) || {}).oc_completo === false ? '*' : '');
     const sinDepto = f => f.departamento || MesAMes.SIN_DEPTO;
 
@@ -122,7 +127,7 @@
       grid.render(r.filas, { agrupar: est.porDepto });
       $('mm-nota').innerHTML = '<b>' + esc(r.titulo) + '.</b> Importes sin centavos (el Excel exportado trae los completos); «—» = la persona no figura ese mes. '
         + 'Costo = 4H + OC + aguinaldo + bajas + bono de proyecto (no incluye el Combo Hogar, que va a la cuenta de RRHH). '
-        + 'Cobrado = neto del recibo 4H + todo lo liquidado por OC (incluye bono y descuentos). Cobrado 4H = neto del recibo. Cobrado 4H OC = todo lo liquidado por OC. '
+        + (est.sinBonos.length ? '<b>Sin bonos de: ' + est.sinBonos.join(', ') + '.</b> ' : '') + 'Cobrado = neto del recibo 4H + todo lo liquidado por OC (incluye bono y descuentos). Cobrado 4H = neto del recibo. Cobrado 4H OC = todo lo liquidado por OC. '
         + 'Ordená con un clic en el título, filtrá con ▾ (varios valores a la vez) y ajustá el ancho arrastrando el borde de la columna.';
     }
 
@@ -148,6 +153,9 @@
     $('mm-depto').addEventListener('change', ev => { est.depto = ev.target.value; pintar(); });
     $('mm-agrupar').addEventListener('change', ev => { est.porDepto = !!ev.target.value; pintar(); });
     $('mm-buscar').addEventListener('input', ev => { est.texto = ev.target.value; pintar(); });
+    document.querySelectorAll('input[data-bono]').forEach(i => i.addEventListener('change', () => {
+      est.sinBonos = [...document.querySelectorAll('input[data-bono]')].filter(x => !x.checked).map(x => x.dataset.bono); pintar();
+    }));
     $('mm-export').addEventListener('click', exportar);
     await cargar();
   }

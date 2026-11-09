@@ -53,3 +53,15 @@ test('un mes sin informe cargado no rompe; los departamentos se listan sin repet
   assert.equal(r.totales.total, 300.10);
   assert.deepEqual(M.departamentos(INF, P), ['ADMIN', 'OPERACIONES', M.SIN_DEPTO]);
 });
+
+test('bonos de proyecto: se pueden sacar por tipo del costo, del cobrado y del cobrado 4H OC; el 4H del recibo no cambia', () => {
+  const g = (legajo, o) => ({ legajo, nombre: 'P' + legajo, departamento: 'X', cuestaTotal: 1000, cobra: 800, neto4H: 500, ocTotal: 300, bonoMontaje: 0, bonoPosventa: 0, bonoOtro: 0, ...o });
+  const inf = { '2026-10': { filas: [g(1, { bonoMontaje: 100, bonoPosventa: 40, bonoOtro: 10 })] } };
+  const t = (medida, sinBonos) => M.matriz(inf, ['2026-10'], { medida, sinBonos }).totales.total;
+  assert.equal(t('costo', []), 1000);
+  assert.equal(t('costo', ['montaje']), 900);
+  assert.equal(t('costo', ['montaje', 'posventa', 'otro']), 850);
+  assert.equal(t('cobrado', ['posventa']), 760);
+  assert.equal(t('cobradooc', ['montaje', 'posventa', 'otro']), 150);
+  assert.equal(t('cobrado4h', ['montaje', 'posventa', 'otro']), 500);
+});

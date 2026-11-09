@@ -27,7 +27,7 @@
   'use strict';
 
   const r2 = x => Math.round(x * 100) / 100;
-  const CAMPOS = ['neto4H', 'cargas', 'costo4H', 'oc', 'aguinaldo', 'bajas', 'bono', 'cuentaRRHH', 'ocTotal',
+  const CAMPOS = ['neto4H', 'cargas', 'costo4H', 'oc', 'aguinaldo', 'bajas', 'bono', 'bonoMontaje', 'bonoPosventa', 'bonoOtro', 'cuentaRRHH', 'ocTotal',
                   'cuestaSinBono', 'cuestaTotal', 'cobra', 'costoExcel', 'totalCobradoExcel'];
   const div = (a, b) => (b ? a / b : null);
 
@@ -64,7 +64,8 @@
         enPadron: !!p,
         neto4H: a.netoAcreditado, cargas: a.cargas, costo4H: a.costo4H,
         oc: a.bono, aguinaldo: a.lineas.aguinaldo, bajas: a.lineas.bajas,
-        bono: a.bonoDirecto, cuentaRRHH: a.cuentaRRHH, ocTotal: a.totalOC,
+        bono: a.bonoDirecto, bonoMontaje: a.bonoTipo.montaje, bonoPosventa: a.bonoTipo.posventa, bonoOtro: a.bonoTipo.otro,
+        cuentaRRHH: a.cuentaRRHH, ocTotal: a.totalOC,
         cuestaSinBono: a.cuestaConLineas, cuestaTotal: r2(a.cuestaConLineas + a.bonoDirecto),
         cobra: r2(a.netoAcreditado + a.totalOC),
         costoExcel: r2(a.netoAcreditado + a.cargas + a.totalOC),

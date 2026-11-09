@@ -7,6 +7,8 @@
      cobrado    cobra        = lo que la persona recibe en el bolsillo (neto 4H + todo lo liquidado por OC)
      cobrado4h  neto4H       = lo acreditado por el recibo 4H
      cobradooc  ocTotal      = todo lo liquidado por OC (incluye bono y descuentos, p. ej. Combo Hogar)
+   Bonos de proyecto: opciones.sinBonos = ['montaje','posventa','otro'] los saca del costo, del total cobrado y del cobrado 4H OC
+   (el cobrado por el recibo 4H no los incluye, así que no cambia).
    Todas las sumas se hacen en centavos enteros para que el total cierre exacto.
    ========================================================================== */
 (function (root, factory) {
@@ -30,7 +32,9 @@
    * → { periodos, medida, filas:[{legajo,nombre,departamento,meses:{p:$},total}], grupos:[{departamento,filas,meses,total}]|null, totales:{meses,total,personas} }
    */
   function matriz(informes, periodos, opciones) {
-    const o = Object.assign({ medida: 'costo', porDepto: false, depto: '', texto: '' }, opciones || {});
+    const o = Object.assign({ medida: 'costo', porDepto: false, depto: '', texto: '', sinBonos: [] }, opciones || {});
+    const sacar = o.sinBonos || [];
+    const descuento = f => (o.medida === 'cobrado4h' ? 0 : sacar.reduce((s, t) => s + cent(f['bono' + t[0].toUpperCase() + t.slice(1)]), 0));
     const m = MEDIDAS[o.medida];
     if (!m) throw new Error('medida desconocida: ' + o.medida);
     const ps = (periodos || []).slice().sort();
@@ -42,7 +46,7 @@
         if (!x) { x = { legajo: f.legajo, nombre: null, departamento: null, c: {} }; personas.set(f.legajo, x); }
         x.nombre = f.nombre || x.nombre;                               // lo más reciente gana (los períodos van de más viejo a más nuevo)
         x.departamento = f.departamento || x.departamento;
-        x.c[p] = (x.c[p] || 0) + cent(f[m.campo]);
+        x.c[p] = (x.c[p] || 0) + cent(f[m.campo]) - descuento(f);
       }
     }
     const t = (o.texto || '').trim().toLowerCase();
