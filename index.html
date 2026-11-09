@@ -300,10 +300,55 @@ async function leerExcel(file, tipo){
   if (!window.XLSX) throw new Error('No se cargó la librería para leer Excel. Revisá la conexión y recargá.');
   const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });   // sin cellDates: las fechas llegan como número exacto
   for (const n of wb.SheetNames){
+    if (RRHHImportador.esHojaDerivada(n)) continue;                  // Project, Resumen, SUSS… del Excel de control no son informes
     const m = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null });
     if (RRHHImportador.pareceInforme(m, tipo)) return m;
   }
   throw new Error('No encontré ninguna hoja con el formato de este informe.');
+}
+
+// Pinta el estado de un archivo ya leído (filas, período, errores y advertencias)
+function pintarArchivo(id, res){
+  const $est = document.getElementById('est-' + id);
+  const partes = [res.filas.length + ' filas'];
+  if (res.periodo) partes.push('período ' + res.periodo);
+  let html = esc(partes.join(' · '));
+  if (res.errores.length) html += '<ul class="lista">' + res.errores.slice(0, 8).map(e => '<li>' + esc(e) + '</li>').join('') +
+    (res.errores.length > 8 ? '<li>… y ' + (res.errores.length - 8) + ' más</li>' : '') + '</ul>';
+  if (res.advertencias.length) html += '<ul class="lista">' + res.advertencias.slice(0, 5).map(e => '<li>' + esc(e) + '</li>').join('') + '</ul>';
+  $est.className = 'est ' + (res.errores.length ? 'mal' : res.advertencias.length ? 'av' : 'ok');
+  $est.innerHTML = html;
+}
+
+// Excel de control del mes: un solo archivo llena el recibo 4H, la liquidación OC y el padrón.
+async function alElegirControl(ev){
+  const file = ev.target.files[0], $e = document.getElementById('est-ctrl');
+  if (!file) { $e.className = 'est'; $e.textContent = 'Sin cargar'; return; }
+  $e.className = 'est'; $e.textContent = 'Leyendo…';
+  try {
+    if (!window.XLSX) throw new Error('No se cargó la librería para leer Excel. Revisá la conexión y recargá.');
+    const R = RRHHImportador;
+    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    const h = R.hojasDeControl(wb.SheetNames);
+    if (!h.cuatroH || !h.oc) throw new Error('No encontré las hojas «Liquidacion Mensual» y «Liquidacion Mensual (2)»: ¿es el Excel de control del mes?');
+    const leer = n => XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null });
+    const partes = { res4h: [h.cuatroH, R.parseResumen], resoc: [h.oc, R.parseResumen] };
+    if (h.padron) partes.padron = [h.padron, R.parsePadron];
+    for (const [id, [hoja, parser]] of Object.entries(partes)) {
+      const res = parser(leer(hoja));
+      cargados[id] = { nombre: file.name + ' · ' + hoja, res };
+      pintarArchivo(id, res);
+      const $f = document.getElementById('f-' + id); if ($f) $f.value = '';
+    }
+    for (const id of ['nov4h', 'novoc']) { delete cargados[id]; const $s = document.getElementById('est-' + id); if ($s) { $s.className = 'est'; $s.textContent = 'Sin cargar (este Excel no trae novedades)'; } }
+    const p4 = cargados.res4h.res.periodo, po = cargados.resoc.res.periodo;
+    if (p4 && p4 === po) document.getElementById('periodo').value = p4;
+    $e.className = 'est ' + (p4 && p4 === po ? 'ok' : 'av');
+    $e.textContent = 'Leído' + (p4 ? ' · período ' + p4 : '') + (h.padron ? ' · con padrón' : ' · sin hoja de legajos') + '. Revisá los controles y apretá Importar.';
+  } catch (e) {
+    $e.className = 'est mal'; $e.textContent = e.message;
+  }
+  pintarControles();
 }
 
 function vistaImportar(){
@@ -317,6 +362,8 @@ function vistaImportar(){
           el C.U.I.L., teléfono y correo nunca salen de tu equipo. Reimportar un informe reemplaza el anterior del mismo período.</p>
         <div class="fila"><label for="periodo">Período</label>
           <div><input type="month" id="periodo" value="${periodoAnterior()}"></div></div>
+        <div class="fila"><label for="f-ctrl">Excel de control del mes<br><span class="nota" style="margin:0">LIQUIDACION_MENSUAL_SUELDOS_AAAAMM: trae el recibo 4H, la liquidación OC y los legajos</span></label>
+          <div><input type="file" id="f-ctrl" accept=".xlsx,.xls"><div class="est" id="est-ctrl">Sin cargar</div></div></div>
         ${ARCHIVOS.map(a => `
           <div class="fila"><label for="f-${a.id}">${esc(a.etiqueta)}</label>
             <div><input type="file" id="f-${a.id}" accept=".xlsx,.xls" data-id="${a.id}">
@@ -333,7 +380,8 @@ function vistaImportar(){
         <div id="resultado" class="est" role="status"></div>
       </div>
     </div>`;
-  document.querySelectorAll('input[type=file]').forEach(i => i.addEventListener('change', alElegir));
+  document.querySelectorAll('input[type=file][data-id]').forEach(i => i.addEventListener('change', alElegir));
+  document.getElementById('f-ctrl').addEventListener('change', alElegirControl);
   document.getElementById('periodo').addEventListener('change', pintarControles);
   document.getElementById('btn-importar').addEventListener('click', importar);
   pintarControles();
@@ -351,14 +399,7 @@ async function alElegir(ev){
     const R = RRHHImportador;
     const res = a.tipo === 'resumen' ? R.parseResumen(m) : a.tipo === 'novedades' ? R.parseNovedades(m) : R.parsePadron(m);
     cargados[a.id] = { nombre: file.name, res };
-    const partes = [res.filas.length + ' filas'];
-    if (res.periodo) partes.push('período ' + res.periodo);
-    let html = esc(partes.join(' · '));
-    if (res.errores.length) html += '<ul class="lista">' + res.errores.slice(0, 8).map(e => '<li>' + esc(e) + '</li>').join('') +
-      (res.errores.length > 8 ? '<li>… y ' + (res.errores.length - 8) + ' más</li>' : '') + '</ul>';
-    if (res.advertencias.length) html += '<ul class="lista">' + res.advertencias.slice(0, 5).map(e => '<li>' + esc(e) + '</li>').join('') + '</ul>';
-    $est.className = 'est ' + (res.errores.length ? 'mal' : res.advertencias.length ? 'av' : 'ok');
-    $est.innerHTML = html;
+    pintarArchivo(a.id, res);
   } catch (e) {
     cargados[a.id] = { nombre: file.name, error: e.message };
     $est.className = 'est mal'; $est.textContent = e.message;
