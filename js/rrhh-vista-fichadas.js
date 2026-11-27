@@ -150,20 +150,20 @@
     function pintarPartes() {
       const num = k => ({ k, tipo: 'n', texto: f => horasTxt((f.pagado || {})[k]), valor: f => (f.pagado || {})[k] || 0 });
       const cols = [
-        { k: 'fecha', titulo: 'Fecha', cls: 'izq', sticky: true, min: 90, texto: f => f.fecha.split('-').reverse().join('/') }, { k: 'dia', titulo: 'Día', cls: 'izq', min: 50 },
+        { k: 'fecha', titulo: 'Fecha', cls: 'izq', sticky: true, min: 90, texto: f => f.dia + ' ' + f.fecha.split('-').reverse().join('/'), valor: f => f.fecha },
         { k: 'legajo', titulo: 'Legajo', tipo: 'n', cls: 'izq', min: 60, texto: f => String(f.legajo) }, { k: 'persona', titulo: 'Persona', cls: 'izq', min: 190 },
         { k: 'horario', titulo: 'Horario', cls: 'izq', texto: f => f.horario || '— sin horario —' },
         { k: 'horas', titulo: 'Fichadas', cls: 'izq', min: 140, texto: f => (f.horas || []).join(' · '), valor: f => (f.horas || []).join(' ') },
-        Object.assign(num('NORMAL 1'), { titulo: 'Normal (h)' }), Object.assign(num('EXTRA 50%'), { titulo: 'Extra 50 % (h)' }), Object.assign(num('EXTRA 100%'), { titulo: 'Extra 100 % (h)' }),
-        { k: 'sinHoraMin', titulo: 'Fuera de horario (min)', tipo: 'n', texto: f => (f.sinHoraMin ? String(f.sinHoraMin) : '') },
-        { k: 'aprob', titulo: 'Extra aprobada (h)', cls: 'izq', texto: f => (f.aprob50 == null && f.aprob100 == null ? '' : [f.aprob50 ? horasTxt(f.aprob50) + ' al 50 %' : '', f.aprob100 ? horasTxt(f.aprob100) + ' al 100 %' : ''].filter(Boolean).join(' + ') || '0') },
+        Object.assign(num('NORMAL 1'), { titulo: 'Normal\n(h)' }), Object.assign(num('EXTRA 50%'), { titulo: 'Extra\n50 % (h)' }), Object.assign(num('EXTRA 100%'), { titulo: 'Extra\n100 % (h)' }),
+        { k: 'sinHoraMin', titulo: 'Fuera de\nhorario', tipo: 'n', texto: f => (f.sinHoraMin ? f.sinHoraMin + ' min' : ''), valor: f => f.sinHoraMin || 0 },
+        { k: 'aprob', titulo: 'Extra\naprobada', cls: 'izq', texto: f => (f.aprob50 == null && f.aprob100 == null ? '' : [f.aprob50 ? horasTxt(f.aprob50) + ' al 50 %' : '', f.aprob100 ? horasTxt(f.aprob100) + ' al 100 %' : ''].filter(Boolean).join(' + ') || '0') },
         { k: 'anorm', titulo: 'Anormalidades', cls: 'izq', min: 230, texto: f => f.marcas.map(m => (m === 'ausente' && f.justificacion ? 'Ausente — ' + f.justificacion : MARCAS[m] || m)).join(' · '), valor: f => f.marcas.join(' ') },
         { k: 'cambios', titulo: 'Cambios', cls: 'izq', min: 100, texto: f => (f.cambios.modificado ? 'Modificado' : ''), valor: f => (f.cambios.modificado ? 1 : 0),
           html: f => (f.cambios.modificado ? '<span class="mod" data-tip="' + attr(f.cambios.lineas.join('\n')) + '">Modificado</span>' : '') },
         { k: 'estadoTxt', titulo: 'Estado', cls: 'izq', min: 120 }];
       est.columnas = cols;
-      est.grid = Tabla.crear({ el: $('fi-tabla'), id: 'fichadas-partes', columnas: cols, esc, filaAttrs: f => 'data-pk="' + esc(f.id) + '" style="cursor:pointer' + (f.revisado || f.clase === 'ok' ? '' : f.clase === 'revisar' ? ';background:#fbf6e6' : ';background:#eef3f7') + '"',
-        pie: rows => ['TOTAL · ' + rows.length + ' partes', '', '', '', '', '', horasTxt(rows.reduce((s, f) => s + (f.pagado['NORMAL 1'] || 0), 0)), horasTxt(rows.reduce((s, f) => s + (f.pagado['EXTRA 50%'] || 0), 0)), horasTxt(rows.reduce((s, f) => s + (f.pagado['EXTRA 100%'] || 0), 0)), '', '', '', '', ''] });
+      est.grid = Tabla.crear({ el: $('fi-tabla'), id: 'fichadas-partes-v3', columnas: cols, esc, filaAttrs: f => 'data-pk="' + esc(f.id) + '" style="cursor:pointer' + (f.revisado || f.clase === 'ok' ? '' : f.clase === 'revisar' ? ';background:#fbf6e6' : ';background:#eef3f7') + '"',
+        pie: rows => ['', '', 'TOTAL · ' + rows.length + ' partes', '', '', horasTxt(rows.reduce((s, f) => s + (f.pagado['NORMAL 1'] || 0), 0)), horasTxt(rows.reduce((s, f) => s + (f.pagado['EXTRA 50%'] || 0), 0)), horasTxt(rows.reduce((s, f) => s + (f.pagado['EXTRA 100%'] || 0), 0)), '', '', '', '', ''] });
       est.grid.render(filas());
       $('fi-nota').innerHTML = '<b>Cómo leerlo:</b> «Sin novedades» = día normal, no hace falta mirarlo. «Por revisar» (amarillo) = falta algo o es llamativo (fichada única, llegó tarde, ausente sin aviso, feriado…). «Extra por aprobar» (celeste) = solo tiene horas extra para aprobar o no. «Revisado» = RRHH ya lo vio. '
         + 'Tocá una fila para corregir ese día. Las horas son las que calcula la app con el horario de cada legajo; las extras no valen hasta que RRHH las aprueba.';
@@ -171,16 +171,16 @@
     function pintarResumen() {
       const hx = k => ({ k, tipo: 'n', texto: f => horasTxt(f[k]), valor: f => f[k] || 0 }), cnt = k => ({ k, tipo: 'n', texto: f => (f[k] ? String(f[k]) : ''), valor: f => f[k] || 0 });
       const cols = [{ k: 'legajo', titulo: 'Legajo', tipo: 'n', cls: 'izq', sticky: true, min: 60, texto: f => String(f.legajo) }, { k: 'persona', titulo: 'Persona', cls: 'izq', min: 190 }, { k: 'horario', titulo: 'Horario', cls: 'izq', texto: f => f.horario || '— sin horario —' },
-        cnt('dias'), Object.assign(hx('normalMin'), { titulo: 'Normal (h)' }), Object.assign(hx('extra50Min'), { titulo: 'Extra 50 % (h)' }), Object.assign(hx('extra100Min'), { titulo: 'Extra 100 % (h)' }),
-        { k: 'aprob', titulo: 'Extra aprobada (h)', tipo: 'n', texto: f => horasTxt(f.aprob50Min + f.aprob100Min), valor: f => f.aprob50Min + f.aprob100Min },
-        Object.assign(cnt('extraPorAprobar'), { titulo: 'Días con extra por aprobar' }), Object.assign(cnt('porRevisar'), { titulo: 'Días por revisar' }), Object.assign(cnt('ausentesSinAviso'), { titulo: 'Ausentes sin aviso' }),
-        Object.assign(cnt('justificados'), { titulo: 'Ausentes justificados' }), Object.assign(cnt('tardes'), { titulo: 'Llegadas tarde' }), Object.assign(cnt('fichadasUnicas'), { titulo: 'Fichadas únicas' }),
+        cnt('dias'), Object.assign(hx('normalMin'), { titulo: 'Normal\n(h)' }), Object.assign(hx('extra50Min'), { titulo: 'Extra\n50 % (h)' }), Object.assign(hx('extra100Min'), { titulo: 'Extra\n100 % (h)' }),
+        { k: 'aprob', titulo: 'Extra\naprobada', tipo: 'n', texto: f => horasTxt(f.aprob50Min + f.aprob100Min), valor: f => f.aprob50Min + f.aprob100Min },
+        Object.assign(cnt('extraPorAprobar'), { titulo: 'Días extra\npor aprobar' }), Object.assign(cnt('porRevisar'), { titulo: 'Días por\nrevisar' }), Object.assign(cnt('ausentesSinAviso'), { titulo: 'Ausentes\nsin aviso' }),
+        Object.assign(cnt('justificados'), { titulo: 'Ausentes\njustificados' }), Object.assign(cnt('tardes'), { titulo: 'Llegadas\ntarde' }), Object.assign(cnt('fichadasUnicas'), { titulo: 'Fichadas\núnicas' }),
         { k: 'llamativo', titulo: 'Llamativo', cls: 'izq', min: 220, texto: f => f.llamativo.join(' · '), valor: f => f.llamativo.join(' ') },
         { k: 'accion', titulo: '', cls: 'izq', texto: () => '', html: f => (puedeEditar && f.extraPorAprobar ? '<button type="button" class="btn sec" data-aprobar="' + f.legajo + '">Aprobar sus extras</button>' : '') }];
-      cols[3].titulo = 'Días con fichadas';
+      cols[3].titulo = 'Días con\nfichadas';
       est.columnas = cols.slice(0, -1);
-      est.gridRes = Tabla.crear({ el: $('fi-tabla'), id: 'fichadas-resumen', columnas: cols, esc, filaAttrs: f => (f.llamativo.length ? 'style="background:#fbf6e6"' : ''),
-        pie: rows => ['TOTAL · ' + rows.length + ' personas', '', '', String(rows.reduce((s, f) => s + f.dias, 0)), horasTxt(rows.reduce((s, f) => s + f.normalMin, 0)), horasTxt(rows.reduce((s, f) => s + f.extra50Min, 0)), horasTxt(rows.reduce((s, f) => s + f.extra100Min, 0)),
+      est.gridRes = Tabla.crear({ el: $('fi-tabla'), id: 'fichadas-resumen-v3', columnas: cols, esc, filaAttrs: f => (f.llamativo.length ? 'style="background:#fbf6e6"' : ''),
+        pie: rows => ['', 'TOTAL · ' + rows.length + ' personas', '', String(rows.reduce((s, f) => s + f.dias, 0)), horasTxt(rows.reduce((s, f) => s + f.normalMin, 0)), horasTxt(rows.reduce((s, f) => s + f.extra50Min, 0)), horasTxt(rows.reduce((s, f) => s + f.extra100Min, 0)),
           horasTxt(rows.reduce((s, f) => s + f.aprob50Min + f.aprob100Min, 0)), String(rows.reduce((s, f) => s + f.extraPorAprobar, 0)), String(rows.reduce((s, f) => s + f.porRevisar, 0)), String(rows.reduce((s, f) => s + f.ausentesSinAviso, 0)), String(rows.reduce((s, f) => s + f.justificados, 0)), String(rows.reduce((s, f) => s + f.tardes, 0)), String(rows.reduce((s, f) => s + f.fichadasUnicas, 0)), '', ''] });
       est.gridRes.render(est.resumen);
       $('fi-nota').innerHTML = '<b>Resumen del período por persona.</b> Las filas amarillas tienen algo llamativo: más de ' + est.limExtras + ' h de extras (se cambia arriba), ausencias sin aviso, 3 o más llegadas tarde o fichadas por completar. «Aprobar sus extras» aprueba las extras calculadas de los días de esa persona que no tienen otras anormalidades.';
@@ -342,7 +342,7 @@
     });
     $('fi-xlsx').addEventListener('click', () => {
       const g = est.vista === 'partes' ? est.grid : est.gridRes; if (!g) return; const fl = g.filtradas(), cols = est.columnas;
-      const aoa = [cols.map(c => c.titulo), ...fl.map(f => cols.map(c => { const v = c.texto ? c.texto(f) : f[c.k]; return v == null ? '' : v; }))];
+      const aoa = [cols.map(c => String(c.titulo).replace(/\n/g, ' ')), ...fl.map(f => cols.map(c => { const v = c.texto ? c.texto(f) : f[c.k]; return v == null ? '' : v; }))];
       const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), est.vista === 'partes' ? 'Partes' : 'Resumen'); XLSX.writeFile(wb, est.vista === 'partes' ? 'partes_diarios.xlsx' : 'resumen_del_periodo.xlsx');
     });
     $('fi-log').addEventListener('click', () => {
