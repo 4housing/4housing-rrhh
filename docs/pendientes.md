@@ -140,3 +140,26 @@ completo NO se versiona porque contiene valores de control de octubre.
   A futuro, al importar conceptos de bono la app pregunta a qué proyecto corresponde: se propone uno con el total liquidado (editable),
   un **+** agrega otro proyecto con su importe, y la suma tiene que coincidir con lo liquidado. Requiere tablas nuevas (SQL aparte).
 - Etapa siguiente (faltan archivos): ajuste de fichadas (salida sin fichar, aprobar horas extra) y Excel de salida para importar novedades en Tango.
+
+## Asientos contables de sueldos (2026-11) — primera versión
+- Nueva solapa **Asientos** (`js/rrhh-asientos.js` = lógica pura probada en `test/asientos.test.js`; `js/rrhh-vista-asientos.js` = pantalla). Se sube en el navegador el
+  «Resumen de conceptos liquidados», el padrón (solapa LEGAJOS) y, si hay coparticipación de operarios, la planilla COPAR. **No hay SQL ni se guarda nada en la base**;
+  solo se recuerda en el navegador (localStorage) la configuración por persona. Del padrón se descartan C.U.I.L., teléfono y correo al leer.
+- Genera, para cargar a mano en Tango: asientos, renglones y una solapa **Auxiliares a cargar** (tipo, auxiliar, porcentaje, importe); más «Sin destino» y un control
+  contra el total del informe (debe dar diferencia 0). Exporta un Excel con las columnas de las solapas de Tango.
+- **Reglas (confirmadas por administración o deducidas y verificadas contra agosto y septiembre; ver la cabecera de `rrhh-asientos.js`):** Adicional Socios; asientos
+  individuales por sector; coparticipación del resto con auxiliar Sueldos repartido por el departamento del padrón (el porcentaje se CALCULA, no es fijo); comisión rental
+  (múltiplos de $500); diferencia de categoría; Neuquén en un solo asiento al cierre contra Remuneraciones a pagar; Bono Montaje con el proyecto elegido; coparticipación de
+  operarios repartida por proyecto según COPAR; adelanto de coparticipación como préstamo en dólares.
+- **Verificado solo en local** con los Excel de agosto, septiembre y octubre de administración (no se prueba contra Tango real). Los asientos de agosto y septiembre
+  coinciden con los cargados, salvo lo listado abajo.
+- **Abierto / a confirmar:**
+  - «Sábado Taller», horas extras y feriados de operarios que no son de Neuquén **no tienen regla** y quedan en «Sin destino» (en agosto explican casi toda la diferencia
+    entre el informe y lo asentado). Falta decidir su tratamiento.
+  - Neuquén: el asiento suma todos los conceptos de esas personas; en septiembre difiere de lo cargado porque se registró una rendición final con otro importe.
+  - Bono Montaje de operarios: en septiembre lo cargado fue menor que lo liquidado; no se sabe a qué otro asiento fue el resto.
+  - Coparticipación de operarios por proyecto: se asume el reparto proporcional a la columna del mes de COPAR (se pueden tildar varios meses). La planilla tiene
+    meses «IMPAGOS» acumulados: confirmar cuál es la regla.
+  - Códigos de auxiliar «Instructivo de fabricación» (`4)` SUEPRO y `1)` NA) y el código de proyecto (primer término del nombre) están deducidos del export de Tango: verificar.
+  - **Identificador** del asiento en el Excel de salida es provisorio (lo asigna Tango); **no se probó importarlo** a Tango. Hoy se usa como guía para cargar a mano.
+  - La lista de quién va en asiento individual y su sector vive solo en el navegador de cada persona; si hace falta compartirla, hay que pasarla a una tabla (SQL aparte).
