@@ -25,7 +25,7 @@
     titulo('Asientos', 'Asientos contables de los adicionales pagados en efectivo, para cargar en Tango');
     if (!PERM.ver.has('liquidacion')) { $main.innerHTML = '<div class="empty">Para generar asientos hace falta permiso de <b>Ver</b> en «Liquidación». Pedíselo a dirección en el portal.</div>'; return; }
 
-    const est = { resumen: null, hojasRes: [], hojaRes: '', legajos: null, copar: null, cfg: leerCfg('personas'), proy: leerCfg('proyectos'), datos: [], novedades: [], res: null, personas: [], vista: 'asientos', grid: null, columnas: [] };
+    const est = { resumen: null, hojasRes: [], hojaRes: '', legajos: null, copar: null, cfg: leerCfg('personas'), proy: leerCfg('proyectos'), datos: [], novedades: [], res: null, personas: [], vista: 'asiento', grid: null, columnas: [] };
     $main.innerHTML = `
       <div class="card" id="as-carga">
         <div class="card-h"><h3>1 · Archivos</h3></div>
@@ -61,7 +61,7 @@
       </div>
       <div id="as-personas-box" hidden>
         <div class="card" style="max-width:none"><div class="card-h"><h3>3 · Personas</h3></div>
-          <div class="card-b"><p class="nota" style="margin-top:0">Quién va en un <b>asiento individual</b> (el resto va al asiento de coparticipación), el <b>sector</b> para el auxiliar de Sueldos (por defecto sale del departamento del padrón), si la persona está <b>fuera de la planificación de producción</b> (administrativos, Neuquén: sus días van al proyecto indicado sin aviso; «Automático» = no figura en el informe de planificación) y el <b>auxiliar de préstamos</b> de quien tenga adelanto. Se recuerda en este navegador.</p>
+          <div class="card-b"><p class="nota" style="margin-top:0">Quién va en un <b>asiento individual</b> (el resto va al asiento de coparticipación), el <b>sector</b> para el auxiliar de Sueldos (por defecto sale del departamento del padrón), si la persona está <b>fuera de la planificación de producción</b> (administrativos, Neuquén: sus días van al proyecto indicado sin aviso; «Automático» = no figura en el informe de planificación) y, de quien tenga adelanto, el <b>auxiliar de préstamos</b>, la <b>etiqueta</b> (p. ej. «ABC DEPTO») y el <b>número de cuota</b> que van en el concepto y la leyenda del asiento. La cotización del dólar es la de arriba (promedio del dólar blue del último día del mes). Se recuerda en este navegador.</p>
           <div id="as-personas"></div></div></div>
       </div>
       <div id="as-proy-box" hidden>
@@ -173,7 +173,7 @@
     /* ---------- tabla de personas ---------- */
     function pintarPersonas() {
       const opSec = sel => '<option value="">(según padrón)</option>' + Object.entries(Asientos.SECTORES).map(([c, n]) => '<option value="' + c + '"' + (sel === c ? ' selected' : '') + '>' + c + ' · ' + esc(n) + '</option>').join('');
-      est.personas = est.res.personas.map(p => { const c = est.cfg[p.clave] || {}; return { ...p, asiento: c.asiento === 'ind' ? 'ind' : 'pool', sectorCfg: c.sector || '', prestamoCfg: c.prestamo || '', fueraSel: c.fueraPlan === true ? 'si' : c.fueraPlan === false ? 'no' : '' }; });
+      est.personas = est.res.personas.map(p => { const c = est.cfg[p.clave] || {}; return { ...p, asiento: c.asiento === 'ind' ? 'ind' : 'pool', sectorCfg: c.sector || '', prestamoCfg: c.prestamo || '', petiqCfg: c.prestamoEtiqueta || '', pcuotaCfg: c.prestamoCuota || '', fueraSel: c.fueraPlan === true ? 'si' : c.fueraPlan === false ? 'no' : '' }; });
       const cols = [
         { k: 'legajo', titulo: 'Legajo', tipo: 'n', cls: 'izq', min: 70, texto: f => String(f.legajo == null ? '' : f.legajo) },
         { k: 'nombre', titulo: 'Persona', cls: 'izq', sticky: true, min: 200 },
@@ -188,9 +188,13 @@
           html: f => '<select data-c="' + esc(f.clave) + '" data-k="fuera"><option value=""' + (f.fueraSel === '' ? ' selected' : '') + '>Automático</option><option value="si"' + (f.fueraSel === 'si' ? ' selected' : '') + '>Sí</option><option value="no"' + (f.fueraSel === 'no' ? ' selected' : '') + '>No</option></select>' },
         { k: 'prestamoCfg', titulo: 'Auxiliar préstamos', cls: 'izq', texto: f => (f.tienePrestamo ? (f.prestamoCfg || '— falta —') : ''),
           html: f => (f.tienePrestamo ? '<input type="text" size="8" data-c="' + esc(f.clave) + '" data-k="prestamo" value="' + esc(f.prestamoCfg) + '" placeholder="código">' : '') },
+        { k: 'petiqCfg', titulo: 'Etiqueta del préstamo', cls: 'izq', texto: f => (f.tienePrestamo ? (f.petiqCfg || '— apellido —') : ''),
+          html: f => (f.tienePrestamo ? '<input type="text" size="12" data-c="' + esc(f.clave) + '" data-k="petiq" value="' + esc(f.petiqCfg) + '" placeholder="p. ej. ABC DEPTO">' : '') },
+        { k: 'pcuotaCfg', titulo: 'Cuota', cls: 'izq', texto: f => (f.tienePrestamo ? (f.pcuotaCfg || '— falta —') : ''),
+          html: f => (f.tienePrestamo ? '<input type="text" size="4" data-c="' + esc(f.clave) + '" data-k="pcuota" value="' + esc(f.pcuotaCfg) + '">' : '') },
       ];
       est.gridPers = Tabla.crear({ el: $('as-personas'), id: 'asientos-personas', columnas: cols, esc,
-        pie: rows => ['', 'TOTAL · ' + rows.length + ' personas', '', num(rows.reduce((s, f) => s + f.total, 0)), '', '', '', ''] });
+        pie: rows => ['', 'TOTAL · ' + rows.length + ' personas', '', num(rows.reduce((s, f) => s + f.total, 0)), '', '', '', '', '', ''] });
       est.gridPers.render(est.personas);
       $('as-personas-box').hidden = false;
     }
@@ -201,6 +205,8 @@
       if (k === 'asiento') { cur.asiento = el.value; f.asiento = el.value; }
       if (k === 'sector') { cur.sector = el.value || undefined; f.sectorCfg = el.value; }
       if (k === 'fuera') { cur.fueraPlan = el.value === 'si' ? true : el.value === 'no' ? false : undefined; f.fueraSel = el.value; }
+      if (k === 'petiq') { cur.prestamoEtiqueta = el.value.trim() || undefined; f.petiqCfg = el.value.trim(); }
+      if (k === 'pcuota') { cur.prestamoCuota = el.value.trim() || undefined; f.pcuotaCfg = el.value.trim(); }
       if (k === 'prestamo') { cur.prestamo = el.value.trim() || undefined; f.prestamoCfg = el.value.trim(); }
       guardarCfg(est.cfg, est.proy); calcular(); pintarResultados();
     });
@@ -232,34 +238,31 @@
       $('as-avisos').innerHTML = '<div class="est ' + (c.diferencia === 0 && !r.avisos.length ? 'ok' : 'av') + '" style="margin-bottom:10px">Total del informe ' + num(c.totalInforme) + ' = gasto asentado ' + num(c.gastoNeto)
         + ' + préstamos ' + num(c.prestamos) + ' + sin destino ' + num(c.sinDestino) + ' · diferencia ' + num(c.diferencia) + (c.diferencia === 0 ? ' ✓' : ' ⚠')
         + (r.avisos.length ? '<ul style="margin:6px 0 0 18px;padding:0">' + r.avisos.map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>' : '') + '</div>';
-      const tabs = [['asientos', 'Asientos contables'], ['renglones', 'Renglones'], ['aux', 'Auxiliares a cargar'], ['sab', 'Sábados y extras por día (' + r.sabados.length + ')'], ['sin', 'Sin destino (' + r.sinDestino.length + ')']];
+      const tabs = [['detalle', 'Detalle'], ['asiento', 'Asiento'], ['sab', 'Sábados y extras por día (' + r.sabados.length + ')']];
       $('as-tabs').innerHTML = tabs.map(([k, t]) => '<button type="button" class="btn' + (est.vista === k ? '' : ' sec') + '" data-v="' + k + '">' + esc(t) + '</button>').join('')
-        + '<span class="sp"></span><button type="button" class="btn sec" id="as-export">Exportar a Excel (todas las solapas)</button>';
-      const arm = (id, columnas, filas, pie) => { est.columnas = columnas; est.grid = Tabla.crear({ el: $('as-tabla'), id, columnas, esc, pie }); est.grid.render(filas); };
-      const flat = (fn) => r.asientos.flatMap(a => fn(a));
-      if (est.vista === 'asientos') {
-        arm('asientos-asientos', [colTxt('concepto', 'Concepto', { sticky: true, min: 260 }), colTxt('moneda', 'Moneda'), colNum('cotizacion', 'Cotización'), colNum('debe', 'Debe'), colNum('haber', 'Haber'), colNum('n', 'Renglones', { texto: f => String(f.n) })],
-          r.asientos.map(a => ({ concepto: a.concepto, moneda: a.moneda, cotizacion: a.cotizacion, debe: a.debe, haber: a.haber, n: a.renglones.length })),
-          rows => ['TOTAL · ' + rows.length + ' asientos', '', '', num(rows.filter(f => f.moneda === 'PES').reduce((s, f) => s + f.debe, 0)), num(rows.filter(f => f.moneda === 'PES').reduce((s, f) => s + f.haber, 0)), '']);
-        $('as-nota').textContent = 'Un asiento por concepto. El total del pie suma solo los asientos en pesos. Cada asiento balancea (debe = haber).';
-      } else if (est.vista === 'renglones') {
-        arm('asientos-renglones', [colTxt('asiento', 'Asiento', { sticky: true, min: 220 }), colNum('nro', 'Nro.', { texto: f => String(f.nro) }), colTxt('cuenta', 'Cuenta'), colNum('debe', 'Debe'), colNum('haber', 'Haber'), colTxt('leyenda', 'Leyenda', { min: 260 })],
-          flat(a => a.renglones.map(x => ({ asiento: a.concepto, ...x }))), rows => ['TOTAL · ' + rows.length + ' renglones', '', '', num(rows.reduce((s, f) => s + (f.debe || 0), 0)), num(rows.reduce((s, f) => s + (f.haber || 0), 0)), '']);
-        $('as-nota').textContent = 'Cuentas: 11110071 Caja pesos 2 · 21400001 Remuneraciones a pagar (Neuquén) · 55000014 Comisiones mandos medios · 56000001 Sueldos.';
-      } else if (est.vista === 'aux') {
-        arm('asientos-aux', [colTxt('asiento', 'Asiento', { sticky: true, min: 220 }), colNum('renglon', 'Renglón', { texto: f => String(f.renglon) }), colTxt('cuenta', 'Cuenta'), colTxt('tipo', 'Tipo de auxiliar', { min: 190 }),
-          colTxt('cod', 'Auxiliar'), colTxt('desc', 'Descripción', { min: 180 }), colNum('pct', 'Porcentaje'), colNum('importe', 'Importe'), colNum('importeUSD', 'Importe USD')],
-          flat(a => a.auxiliares.map(x => ({ asiento: a.concepto, ...x }))), rows => ['TOTAL · ' + rows.length + ' líneas', '', '', '', '', '', '', '', '']);
-        $('as-nota').textContent = 'Para cargar a mano en Tango (botón Auxiliares de cada renglón de gasto): por renglón, tipo de auxiliar, auxiliar, porcentaje e importe. El porcentaje tiene 2 decimales y cada reparto suma 100.';
-      } else if (est.vista === 'sab') {
+        + '<span class="sp"></span><button type="button" class="btn sec" id="as-export">Exportar a Excel (Detalle + Asiento)</button>';
+      const arm = (id, columnas, filas, pie, extra) => { est.columnas = columnas; est.grid = Tabla.crear(Object.assign({ el: $('as-tabla'), id, columnas, esc, pie }, extra || {})); est.grid.render(filas); };
+      if (est.vista === 'detalle') {
+        arm('asientos-detalle', [colNum('legajo', 'Legajo', { cls: 'izq', sticky: true, min: 70, texto: f => String(f.legajo == null ? '' : f.legajo) }), colTxt('persona', 'Apellido y nombre', { sticky: true, min: 210 }),
+          colTxt('grupo', 'Grupo de conceptos'), colTxt('concepto', 'Concepto', { min: 200 }), colNum('importe', 'Importe'), colTxt('destino', 'Destino (asiento)', { min: 280 })],
+          r.detalle, rows => ['', 'TOTAL · ' + rows.length + ' líneas', '', '', num(rows.reduce((s, f) => s + f.importe, 0)), '']);
+        $('as-nota').textContent = 'Una fila por línea del informe, como la solapa «Totales» de Tango, con el asiento al que va. Filtrá «Destino» por SIN DESTINO para ver lo que falta asentar. Los totales por persona y por destino están en el Excel.';
+      } else if (est.vista === 'asiento') {
+        const n = k => ({ k, titulo: Asientos.COLS_ASIENTO.find(c => c[0] === k)[1] });
+        const num2 = k => Object.assign(n(k), { tipo: 'n', texto: f => num(f[k]) });
+        const fechaTxt = f => (f.fecha ? f.fecha.split('-').reverse().join('/') : '');
+        arm('asientos-asiento', [Object.assign(n('asiento'), { tipo: 'n', cls: 'izq', min: 60, texto: f => String(f.asiento) }), Object.assign(n('fila'), { cls: 'izq' }), Object.assign(n('nro'), { cls: 'izq', min: 50, texto: f => (f.nro == null ? '' : String(f.nro)) }),
+          Object.assign(n('cuenta'), { cls: 'izq' }), Object.assign(n('descCuenta'), { cls: 'izq', min: 170 }), num2('debe'), num2('haber'), Object.assign(n('texto'), { cls: 'izq', min: 330 }),
+          Object.assign(n('tipoAux'), { cls: 'izq', min: 190 }), Object.assign(n('aux'), { cls: 'izq' }), Object.assign(n('descAux'), { cls: 'izq', min: 190 }), num2('pct'), num2('importe'),
+          Object.assign(n('fecha'), { cls: 'izq', texto: fechaTxt }), Object.assign(n('moneda'), { cls: 'izq' }), num2('cotizacion'), Object.assign(n('obs'), { cls: 'izq', min: 260 })],
+          Asientos.filasAsiento(r, $('as-fecha').value), rows => ['', '', '', '', 'TOTAL', num(rows.reduce((s, f) => s + (f.debe || 0), 0)), num(rows.reduce((s, f) => s + (f.haber || 0), 0)), '', '', '', '', '', '', '', '', '', ''],
+          { filaAttrs: f => (f.fila === 'ASIENTO' ? 'style="font-weight:700;background:#e9ecdc"' : f.fila === 'Auxiliar' ? 'style="color:#5b6350"' : '') });
+        $('as-nota').textContent = 'Todo lo necesario para cargar cada asiento en Tango, en una sola tabla: título del asiento (fecha, moneda, cotización, observaciones), sus renglones y, debajo de cada renglón de gasto, sus auxiliares (tipo, auxiliar, porcentaje, importe). El total del pie suma pesos y dólares juntos: usá el filtro «Moneda» para separarlos.';
+      } else {
         arm('asientos-sab', [colTxt('persona', 'Persona', { sticky: true, min: 200 }), colNum('legajo', 'Legajo', { cls: 'izq', texto: f => String(f.legajo == null ? '' : f.legajo) }), colTxt('concepto', 'Concepto'),
           colTxt('fecha', 'Fecha', { texto: f => f.fecha || '— sin día —', valor: f => f.fecha || '' }), colTxt('proyecto', 'Proyecto', { min: 200 }), colTxt('tarea', 'Tarea / motivo', { min: 240 }), colNum('importe', 'Importe'), colTxt('origen', 'Origen', { min: 200 })],
           r.sabados, rows => ['TOTAL · ' + rows.length + ' líneas', '', '', '', '', '', num(rows.reduce((s, f) => s + f.importe, 0)), '']);
         $('as-nota').textContent = 'Reparto por día: los días pagados salen de las novedades (SABADO: partes iguales por día; HRSEX1: proporcional a las horas) y el proyecto y la tarea de cada día, del informe de planificación. Lo que no se puede ubicar por día va al proyecto y motivo indicados arriba.';
-      } else {
-        arm('asientos-sin', [colTxt('persona', 'Persona', { sticky: true, min: 200 }), colTxt('concepto', 'Concepto'), colNum('nro', 'Nro.', { texto: f => String(f.nro) }), colNum('importe', 'Importe'), colTxt('motivo', 'Motivo', { min: 240 })],
-          r.sinDestino, rows => ['TOTAL', '', '', num(rows.reduce((s, f) => s + f.importe, 0)), '']);
-        $('as-nota').textContent = 'Lo liquidado que todavía no tiene regla de asiento. No se asienta ni se descarta: acá se ve para decidir su tratamiento.';
       }
     }
     $('as-tabs').addEventListener('click', ev => {
@@ -269,7 +272,7 @@
     });
     function exportar() {
       const h = Asientos.hojas(est.res, { fecha: $('as-fecha').value }), wb = XLSX.utils.book_new();
-      for (const [n, aoa] of Object.entries(h)) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa, { cellDates: true }), n);
+      for (const [n, aoa] of Object.entries(h)) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), n);
       XLSX.writeFile(wb, 'asientos_sueldos_' + $('as-periodo').value + '.xlsx');
     }
 

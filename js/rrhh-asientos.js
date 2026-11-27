@@ -42,6 +42,8 @@
 
   const CUENTA = { sueldos: '56000001', copart: '55000014', movilidad: '52000002', rrhh: '56000009', alquileres: '55000004', dtm: '55000010',
     bono: '55000016', indem: '56000008', caja: '11110071', pagar: '21400001', prestamos: '11220002' };
+  const NOMBRE_CUENTA = { '56000001': 'Sueldos', '55000014': 'Comisiones MANDO MEDIOS', '52000002': 'Movilidad Combustible', '56000009': 'Recursos Humanos', '55000004': 'Comisiones Alquileres',
+    '55000010': 'Comisiones DTM', '55000016': 'Bono Montaje', '56000008': 'Indemnizaciones', '11110071': 'CAJA PESOS 2', '21400001': 'Remuneraciones a pagar', '11220002': 'Prestamos Otorgados USD' };
   const TIPO_AUX = { EERR: { cod: '02', nom: '02 - EERR' }, INSTR: { cod: '03', nom: '03 - INSTRUCTIVO DE FABRICACION' },
     SUELDOS: { cod: '10', nom: '10 - SUELDOS' }, PREST: { cod: '30', nom: '30 - PRESTAMOS PERSONAL' } };
   const E = { sueldos: { cod: '23', desc: 'N) SUELDOS' }, estructura: { cod: '20', desc: 'K) ESTRUCTURA' }, alquiler: { cod: '04', desc: 'B) COSTO ALQUILER MODULO' },
@@ -90,7 +92,7 @@
       if (!Number.isFinite(nro) || !Number.isFinite(imp) || f['Legajo'] == null) continue;
       const p = f['Período liquidado'] instanceof Date ? f['Período liquidado'].getFullYear() * 100 + f['Período liquidado'].getMonth() + 1 : f['Período liquidado'];
       if (periodo && String(p) !== String(periodo)) continue;
-      out.push({ legajo: f['Legajo'], apellidos: limpio(f['Apellidos']), nombre: limpio(f['Nombre']), nro, desc: limpio(f['Desc. de concepto']), importe: imp, periodo: p });
+      out.push({ legajo: f['Legajo'], apellidos: limpio(f['Apellidos']), nombre: limpio(f['Nombre']), nro, desc: limpio(f['Desc. de concepto']), grupo: limpio(f['Grupo de concepto'] != null ? f['Grupo de concepto'] : f['Grupo de Concepto']), importe: imp, periodo: p });
     }
     return out;
   }
@@ -159,7 +161,7 @@
         const base = c.asiento === 'ind' ? 'ind' : 'pool';
         const sector = c.sector || sectorDeDepto(lg && lg.depto);
         pers.set(k, { fueraCfg: typeof c.fueraPlan === 'boolean' ? c.fueraPlan : null, clave: k, nombre: limpio(f.apellidos + ', ' + f.nombre), legajo: lg ? lg.legajo : f.legajo, legajoInforme: f.legajo, depto: lg ? lg.depto : '', nombreLegajo: lg ? lg.nombre : '',
-          sector, ind: base === 'ind', prestamo: c.prestamo || '', lineas: [], enPadron: !!lg });
+          sector, ind: base === 'ind', prestamo: c.prestamo || '', prestamoEtiqueta: limpio(c.prestamoEtiqueta), prestamoCuota: limpio(c.prestamoCuota), lineas: [], enPadron: !!lg });
       }
       pers.get(k).lineas.push(f);
     }
@@ -183,7 +185,8 @@
     }
     const D = { socios: 0, ind: new Map(), pool: [], hogar: 0, movilidad: 0, rentalAlq: 0, rentalSrv: 0, difcat: 0, neuquen: 0, indemn: 0, bonoAdm: 0, bonoOpe: 0, sab: 0, sabList: [],
       vac: [], prestamos: [], copeOpe: 0 };
-    const sd = (p, l, motivo) => sinDestino.push({ persona: p.nombre, nro: l.nro, concepto: l.desc, importe: l.importe, motivo });
+    const tipoLin = new Map();                       // línea del informe → tipo de destino (para la solapa Detalle)
+    const sd = (p, l, motivo) => { tipoLin.set(l, 'SIN'); sinDestino.push({ persona: p.nombre, nro: l.nro, concepto: l.desc, importe: l.importe, motivo }); };
 
     for (const p of pers.values()) {
       const g = {};                                    // grupos de la persona por tipo
@@ -202,8 +205,10 @@
           else { sd(p, l, 'Sin regla de asiento todavía'); continue; }
         }
         if (t === 'sab') { if (l.nro === 55013) sabParte += l.importe; else heParte += l.importe; }
+        tipoLin.set(l, t);
         sumar(t, l.importe);
       }
+      let redTipo = null;
       // comisión rental: cada importe al múltiplo de $500 más cercano; consume parte del redondeo de la persona
       if (g.rentalAlq != null || g.rentalSrv != null) {
         const r500 = x => Math.round(x / 500) * 500;
@@ -214,15 +219,17 @@
         if (g.rentalAlq != null) g.rentalAlq = a2;
         if (g.rentalSrv != null) g.rentalSrv = s2;
         redondeo = to2(redondeo - consumido);
+        if (Math.abs(consumido) > 0.005) redTipo = 'rental';
       }
       if (Math.abs(redondeo) > 0.005) {                // el resto del redondeo va a la línea con decimales (o, si no hay, a la mayor)
         const cand = CANDIDATOS_REDONDEO.filter(t => g[t] != null);
         const dec = cand.filter(t => Math.abs(g[t] - Math.round(g[t])) > 0.005).sort((x, y) => Math.abs(g[y]) - Math.abs(g[x]));
         const sinDec = sinDestino.slice(sin0).some(x => Math.abs(x.importe - Math.round(x.importe)) > 0.005);   // el redondeo es de un concepto que no se asienta
         const destino = dec[0] || (sinDec ? null : PRIORIDAD_REDONDEO.find(t => g[t] != null));       // sin decimales: primero las líneas «de cálculo» (bonos, vacaciones…), la coparticipación al final
-        if (destino) g[destino] = to2(g[destino] + redondeo);
-        else sinDestino.push({ persona: p.nombre, nro: 99999, concepto: 'Redondeo', importe: to2(redondeo), motivo: sinDec ? 'Acompaña a un concepto sin destino' : 'La persona no tiene otra línea asentada' });
+        if (destino) { g[destino] = to2(g[destino] + redondeo); redTipo = destino; }
+        else { redTipo = redTipo || 'SIN'; sinDestino.push({ persona: p.nombre, nro: 99999, concepto: 'Redondeo', importe: to2(redondeo), motivo: sinDec ? 'Acompaña a un concepto sin destino' : 'La persona no tiene otra línea asentada' }); }
       }
+      p.redTipo = redTipo;
       for (const t of Object.keys(g)) {
         const imp = to2(g[t]);
         if (t === 'socios') D.socios += imp;
@@ -380,14 +387,16 @@
       }
     }
     for (const { p, imp } of D.prestamos) {
-      if (!o.cotizacion) { sinDestino.push({ persona: p.nombre, nro: 55041, concepto: 'Adelanto de coparticipación', importe: imp, motivo: 'Falta la cotización del dólar' }); continue; }
-      const usd = to2(Math.abs(imp) / o.cotizacion), ape = p.nombre.split(',')[0].toUpperCase();
-      const a = nuevo('PRESTAMO ' + ape + ' ' + mesTxt, { moneda: 'DOL', cotizacion: o.cotizacion }), ley = pad2(p.legajo) + ' - PRESTAMO ' + ape + ' ' + mesTxt;
+      if (!o.cotizacion) { p.sinCot = true; sinDestino.push({ persona: p.nombre, nro: 55041, concepto: 'Adelanto de coparticipación', importe: imp, motivo: 'Falta la cotización del dólar' }); continue; }
+      const usd = to2(Math.abs(imp) / o.cotizacion), ape = p.nombre.split(',')[0].toUpperCase(), etiqueta = p.prestamoEtiqueta || ape;
+      // formato del asiento modelo de Tango: concepto «PRESTAMO <etiqueta> AAAAMM», leyenda «<legajo> - PRESTAMO <etiqueta> AAAAMM Cuota N», auxiliar «<código> - <legajo> <apellido y nombre>» en dólares
+      const a = nuevo('PRESTAMO ' + etiqueta + ' ' + mesTxt, { moneda: 'DOL', cotizacion: o.cotizacion }), ley = pad2(p.legajo) + ' - ' + a.concepto + (p.prestamoCuota ? ' Cuota ' + p.prestamoCuota : '');
       const cobro = imp < 0;                                  // descuento al empleado: baja el préstamo (haber) y entra a caja (debe)
       const n = reng(a, CUENTA.prestamos, cobro ? 0 : usd, cobro ? usd : 0, ley);
       reng(a, CUENTA.caja, cobro ? usd : 0, cobro ? 0 : usd, ley);
       if (!p.prestamo) avisos.push(p.nombre + ': falta el código de auxiliar de préstamos (tipo 30).');
-      a.auxiliares.push({ renglon: n, cuenta: CUENTA.prestamos, tipo: TIPO_AUX.PREST.nom, tipoCod: TIPO_AUX.PREST.cod, cod: p.prestamo || '', desc: pad2(p.legajo) + ' ' + (p.nombreLegajo || p.nombre), pct: 100, importe: to2(Math.abs(imp)), importeUSD: usd });
+      if (!p.prestamoCuota) avisos.push(p.nombre + ': falta el número de cuota del préstamo (va en la leyenda).');
+      a.auxiliares.push({ renglon: n, cuenta: CUENTA.prestamos, tipo: TIPO_AUX.PREST.nom, tipoCod: TIPO_AUX.PREST.cod, cod: p.prestamo || '', desc: pad2(p.legajo) + ' ' + (p.nombreLegajo || p.nombre), pct: 100, importe: usd, importeUSD: usd, importePesos: to2(Math.abs(imp)) });
     }
     D.prestamosPesos = to2(D.prestamos.filter(x => o.cotizacion).reduce((s, x) => s + x.imp, 0));
 
@@ -404,29 +413,66 @@
     }
     const personas = [...pers.values()].map(p => ({ fueraCfg: p.fueraCfg, fueraAuto: !(o.datos || []).length ? false : ![...new Set([String(p.legajo), String(p.legajoInforme)])].some(l => legDatos.has(l)), clave: p.clave, nombre: p.nombre, legajo: p.legajo, depto: p.depto, sector: p.sector, ind: p.ind, prestamo: p.prestamo,
       tienePrestamo: p.lineas.some(l => l.nro === 55041), total: to2(p.lineas.reduce((s, l) => s + l.importe, 0)) }));
+    /* ---------------- detalle (como la solapa «Totales» de Tango) ---------------- */
+    const ETIQ = { socios: 'SUELDOS', copart: 'COMISION COPART ADM', hogar: 'COMISION COPART ADM', movilidad: 'COMISION COPART ADM', vac: 'COMISION COPART ADM (vacaciones)', rentalAlq: 'COMISION VENTA ALQUILER Y DTM',
+      rentalSrv: 'COMISION VENTA ALQUILER Y DTM', rental: 'COMISION VENTA ALQUILER Y DTM', difcat: 'Sueldos - Dif. de categoria', neuquen: 'COMISION COPART NEUQUEN', indemn: 'COMISION COPART NEUQUEN',
+      bonoAdm: 'BONOS MONTAJE', bonoOpe: 'BONOS MONTAJE', sab: 'SABADOS, HS EXTRA Y FERIADOS', copeOpe: 'COMISION COPART OPERARIOS', SIN: 'SIN DESTINO' };
+    const etiqueta = (t, p) => (t === 'individual' ? tituloIndividual(p.sector || '??') : t === 'prestamo' ? (p.sinCot ? 'SIN DESTINO (falta la cotización)' : 'PRESTAMO ' + (p.prestamoEtiqueta || p.nombre.split(',')[0].toUpperCase())) : (ETIQ[t] || 'SIN DESTINO'));
+    const detalle = [];
+    for (const p of [...pers.values()].sort((x, y) => (Number(x.legajo) || 0) - (Number(y.legajo) || 0))) {
+      for (const l of p.lineas.slice().sort((x, y) => x.nro - y.nro)) {
+        const t = l.nro === 99999 ? null : tipoLin.get(l);
+        detalle.push({ legajo: p.legajo, persona: p.nombreLegajo || p.nombre, grupo: l.grupo || '', nro: l.nro, concepto: l.desc, importe: l.importe,
+          destino: l.nro === 99999 ? (p.redTipo ? 'Redondeo → ' + etiqueta(p.redTipo, p) : 'Redondeo (sin otra línea)') : etiqueta(t, p) });
+      }
+    }
     const proyectosPlan = [...new Set([...proyUsados, ...[...sabPorLegajo.values()].flatMap(m => [...m.values()].map(r => r.proyecto))])].sort();
-    return { asientos, sinDestino, sabados, proyectosPlan, avisos: [...new Set(avisos)], control, personas };
+    return { asientos, detalle, sinDestino, sabados, proyectosPlan, periodo, avisos: [...new Set(avisos)], control, personas };
   }
 
-  /** Hojas para el Excel de salida (columnas como las del Excel de Tango). Identificador PROVISORIO: lo asigna Tango al importar/cargar. */
-  function hojas(res, o) {
-    const [y, m, d] = String(o.fecha).split('-').map(Number), fecha = new Date(Date.UTC(y, m - 1, d));
-    const A = [['Identificador', 'Fecha de asiento', 'Clase de asiento', 'Código de tipo de asiento', 'Estado', 'Código de moneda', 'Concepto', 'Observaciones', 'Eliminar']];
-    const R = [['Identificador', 'Nro.', 'Código de cuenta', 'Debe', 'Haber', 'Fecha de origen', 'Leyenda', 'Eliminar']];
-    const C = [['Identificador', 'Código de moneda', 'Código de tipo de cotización', 'Cotización', 'Eliminar']];
-    const X = [['Asiento', 'Renglón', 'Cód. cuenta', 'Tipo de auxiliar', 'Auxiliar', 'Descripción', 'Porcentaje', 'Importe', 'Importe en USD']];
+  /** Fecha para el Excel: número de día (serie) con formato dd/mm/aaaa. NO se usa un Date: la librería lo escribe con la zona horaria local y en Argentina quedaba 30/10 23:59:12 (= un día antes). */
+  const celdaFecha = f => { const [y, m, d] = String(f).split('-').map(Number); return { t: 'n', v: Math.round((Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000), z: 'dd/mm/yyyy' }; };
+
+  /** Filas planas de la solapa «Asiento» (una sola tabla: título del asiento, sus renglones y, debajo de cada renglón, sus auxiliares). Sirve para la pantalla y para el Excel. */
+  function filasAsiento(res, fecha) {
+    const out = [];
     res.asientos.forEach((a, i) => {
-      const id = i + 1;
-      A.push([id, fecha, 'Básico', 'CN', 'Ingresado', a.moneda, a.concepto, a.observaciones || '', 'No']);
-      a.renglones.forEach(r => R.push([id, r.nro, r.cuenta, r.debe, r.haber, fecha, r.leyenda, 'No']));
-      if (a.moneda === 'DOL') C.push([id, 'DOL', 'COTIZACIÓN', a.cotizacion, 'No']);
-      a.auxiliares.forEach(x => X.push([a.concepto, x.renglon, x.cuenta, x.tipo, x.cod, x.desc, x.pct, x.importe, x.importeUSD == null ? '' : x.importeUSD]));
+      out.push({ asiento: i + 1, fila: 'ASIENTO', texto: a.concepto, fecha, moneda: a.moneda, cotizacion: a.moneda === 'DOL' ? a.cotizacion : null,
+        obs: ['Clase Básico · Tipo CN · Estado Ingresado'].concat(a.observaciones ? [a.observaciones] : []).join(' · ') });
+      a.renglones.forEach(r => {
+        out.push({ asiento: i + 1, fila: 'Renglón', nro: r.nro, cuenta: r.cuenta, descCuenta: NOMBRE_CUENTA[r.cuenta] || '', debe: r.debe, haber: r.haber, texto: r.leyenda, fecha });
+        a.auxiliares.filter(x => x.renglon === r.nro).forEach(x => out.push({ asiento: i + 1, fila: 'Auxiliar', nro: r.nro, cuenta: r.cuenta, tipoAux: x.tipo, aux: x.cod, descAux: x.desc, pct: x.pct, importe: x.importe }));
+      });
     });
-    const Z = [['Persona', 'Legajo', 'Concepto', 'Fecha', 'Proyecto', 'Tarea', 'Importe', 'Origen']].concat((res.sabados || []).map(x => [x.persona, x.legajo, x.concepto, x.fecha, x.proyecto, x.tarea, x.importe, x.origen]));
-    const S = [['Persona', 'Concepto', 'Nro.', 'Importe', 'Motivo']].concat(res.sinDestino.map(x => [x.persona, x.concepto, x.nro, x.importe, x.motivo]));
-    const K = [['Control', 'Importe'], ['Total del informe', res.control.totalInforme], ['Gasto asentado', res.control.gastoNeto], ['Préstamos (adelantos descontados)', res.control.prestamos],
-      ['Sin destino', res.control.sinDestino], ['Diferencia (debe ser 0)', res.control.diferencia]].concat(res.avisos.map(t => ['Aviso: ' + t, '']));
-    return { 'Asientos contables': A, 'Renglones': R, 'Cotizaciones': C, 'Auxiliares a cargar': X, 'Sábados y extras por día': Z, 'Sin destino': S, 'Control': K };
+    return out;
+  }
+  const COLS_ASIENTO = [['asiento', 'Asiento'], ['fila', 'Fila'], ['nro', 'Nro.'], ['cuenta', 'Código de cuenta'], ['descCuenta', 'Descripción de cuenta'], ['debe', 'Debe'], ['haber', 'Haber'],
+    ['texto', 'Concepto del asiento / Leyenda del renglón'], ['tipoAux', 'Tipo de auxiliar'], ['aux', 'Auxiliar'], ['descAux', 'Descripción del auxiliar'], ['pct', 'Porcentaje'], ['importe', 'Importe del auxiliar'],
+    ['fecha', 'Fecha'], ['moneda', 'Moneda'], ['cotizacion', 'Cotización'], ['obs', 'Observaciones']];
+
+  /** Hojas para el Excel de salida: SOLO DOS, «Detalle» (como la solapa Totales de Tango, con el destino de cada línea) y «Asiento» (todo lo necesario para cargarlo, en una sola tabla). */
+  function hojas(res, o) {
+    const c = res.control;
+    const D = [['Asientos de adicionales en efectivo · período ' + (res.periodo || '')], [],
+      ['Control', 'Importe'], ['Total del informe', c.totalInforme], ['Gasto asentado', c.gastoNeto], ['Préstamos (adelantos descontados)', c.prestamos], ['Sin destino', c.sinDestino], ['Diferencia (debe ser 0)', c.diferencia], [],
+      ['Legajo', 'Apellido y nombre', 'Grupo de conceptos', 'Concepto', 'Importe', 'Destino (asiento)']];
+    const porLegajo = new Map();
+    for (const r of res.detalle) { if (!porLegajo.has(r.legajo)) porLegajo.set(r.legajo, []); porLegajo.get(r.legajo).push(r); }
+    for (const [leg, rows] of porLegajo) {
+      rows.forEach(r => D.push([r.legajo, r.persona, r.grupo, r.concepto, r.importe, r.destino]));
+      D.push(['Total ' + leg, '', '', '', to2(rows.reduce((s, r) => s + r.importe, 0)), '']);
+    }
+    D.push(['Total general', '', '', '', to2(res.detalle.reduce((s, r) => s + r.importe, 0)), ''], [], ['Total por destino', '', '', '', 'Importe']);
+    const porDest = new Map();
+    for (const r of res.detalle) porDest.set(r.destino, to2((porDest.get(r.destino) || 0) + r.importe));
+    [...porDest.entries()].sort().forEach(([k, v]) => D.push([k, '', '', '', v]));
+    if (res.avisos.length) { D.push([], ['Avisos']); res.avisos.forEach(t => D.push([t])); }
+    if (res.sabados && res.sabados.length) {
+      D.push([], ['Sábados y extras por día', '', '', '', '', ''], ['Persona', 'Legajo', 'Concepto', 'Fecha', 'Proyecto', 'Tarea / motivo', 'Importe', 'Origen']);
+      res.sabados.forEach(x => D.push([x.persona, x.legajo, x.concepto, x.fecha, x.proyecto, x.tarea, x.importe, x.origen]));
+    }
+    const A = [COLS_ASIENTO.map(x => x[1])].concat(filasAsiento(res, o.fecha).map(r => COLS_ASIENTO.map(([k]) => (r[k] == null ? '' : k === 'fecha' ? celdaFecha(r[k]) : r[k]))));
+    return { 'Detalle': D, 'Asiento': A };
   }
 
   /** Planilla COPAR (hoja «COPAR»): importe por proyecto de las columnas de mes elegidas. Agrupa por código (primer término del nombre). */
@@ -448,5 +494,5 @@
     return { meses: cols.map(c => c.ym), proyectos: [...por.values()] };
   }
 
-  return { generar, hojas, leerDatos, leerNovedades, auxProyecto, leerLegajos, leerResumen, periodos, leerCopar, porcentajes, repartir, clave, sectorDeDepto, SECTORES, CUENTA };
+  return { generar, hojas, filasAsiento, COLS_ASIENTO, leerDatos, leerNovedades, auxProyecto, leerLegajos, leerResumen, periodos, leerCopar, porcentajes, repartir, clave, sectorDeDepto, SECTORES, CUENTA };
 });
