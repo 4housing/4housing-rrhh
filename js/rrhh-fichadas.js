@@ -62,7 +62,7 @@
   function calcularDia(op) {
     const horas = (op.horas || []).slice().sort(), unidad = op.unidad || 30, h = op.horario || null;
     const dow = diaSemana(op.fecha);
-    const res = { entrada: horas[0] || null, salida: horas.length > 1 ? horas[horas.length - 1] : null, n: horas.length, esperadoMin: 0, pagado: {}, sinHoraMin: 0, marcas: [], sugerencias: [] };
+    const res = { horas, entrada: horas[0] || null, salida: horas.length > 1 ? horas[horas.length - 1] : null, n: horas.length, esperadoMin: 0, pagado: {}, sinHoraMin: 0, marcas: [], sugerencias: [] };
     if (op.feriado) res.marcas.push('feriado');
     if (!h) { if (horas.length) res.marcas.push('sin_horario'); return res; }
     const tramos = ((op.feriado && h.feriados) ? h.feriados[dow] : h.dias[dow]) || [];
@@ -183,5 +183,32 @@
     }).sort((a, b) => a.legajo - b.legajo);
   }
 
-  return { leerTxt, armarTxt, calcularDia, armarPartes, clasificar, resumenPersonas, JUSTIFICACION, EXTRAS_ALTAS_MIN, codigoFichador, legajoDe, hm, fmt, redondear, diaSemana, NOMBRE_DIA };
+  /* ------------------------ qué se modificó y qué había antes ------------------------ */
+  const horasFmt = min => (min / 60).toFixed(2).replace('.', ',');
+  const TIPOS_HORA = [['NORMAL 1', 'Normal'], ['EXTRA 50%', 'Extra 50 %'], ['EXTRA 100%', 'Extra 100 %']];
+  /**
+   * Compara lo que vino de Tango con lo que quedó. op: { fichadasDia:[{hora,origen,anulada,motivo,creado_por,creado_en,anulada_por,anulada_en}], antes:{horas,pagado}, ahora:{horas,pagado},
+   * aprobacion:{extra50_aprobada_min,extra100_aprobada_min,revisado_por,revisado_en}|null, quien:uid→nombre, cuando:iso→texto }
+   * → { modificado:boolean, lineas:[texto] }  («antes» = solo las fichadas de Tango, tal como llegaron).
+   */
+  function describirCambios(op) {
+    const quien = op.quien || (u => (u ? 'un usuario' : '')), cuando = op.cuando || (x => x || ''), lineas = [];
+    const firma = (u, t) => { const q = u ? quien(u) : '', c = t ? cuando(t) : ''; return (q || c) ? ' — ' + [q, c].filter(Boolean).join(', ') : ''; };
+    const dia = op.fichadasDia || [], manuales = dia.filter(f => f.origen === 'manual' && !f.anulada), anuladas = dia.filter(f => f.origen === 'tango' && f.anulada);
+    for (const f of manuales) lineas.push('+ ' + f.hora + ' agregada por RRHH' + (f.motivo ? ' (' + f.motivo + ')' : '') + firma(f.creado_por, f.creado_en));
+    for (const f of anuladas) lineas.push('− ' + f.hora + ' anulada' + (f.motivo ? ' (' + f.motivo + ')' : '') + firma(f.anulada_por, f.anulada_en));
+    if (manuales.length || anuladas.length) {
+      const antes = (op.antes.horas || []).join(' · ') || 'sin fichadas', ahora = (op.ahora.horas || []).join(' · ') || 'sin fichadas';
+      lineas.unshift('Fichadas — antes: ' + antes + ' → ahora: ' + ahora);
+      for (const [k, n] of TIPOS_HORA) { const a = op.antes.pagado[k] || 0, b = op.ahora.pagado[k] || 0; if (a !== b) lineas.push(n + ': ' + horasFmt(a) + ' h → ' + horasFmt(b) + ' h'); }
+    }
+    const ap = op.aprobacion;
+    if (ap) for (const [campo, k, n] of [['extra50_aprobada_min', 'EXTRA 50%', 'Extra 50 %'], ['extra100_aprobada_min', 'EXTRA 100%', 'Extra 100 %']]) {
+      const calc = op.ahora.pagado[k] || 0;
+      if (ap[campo] != null && ap[campo] !== calc) lineas.push(n + ' aprobada: calculada ' + horasFmt(calc) + ' h → aprobada ' + horasFmt(ap[campo]) + ' h' + firma(ap.revisado_por, ap.revisado_en));
+    }
+    return { modificado: lineas.length > 0, lineas };
+  }
+
+  return { leerTxt, armarTxt, calcularDia, armarPartes, clasificar, resumenPersonas, describirCambios, JUSTIFICACION, EXTRAS_ALTAS_MIN, codigoFichador, legajoDe, hm, fmt, redondear, diaSemana, NOMBRE_DIA };
 });

@@ -129,3 +129,25 @@ test('resumenPersonas: totales por persona, extras aprobadas vs por aprobar y lo
   assert.deepEqual([b.dias, b.ausentesSinAviso, b.justificados], [0, 1, 1]);
   assert.deepEqual(b.llamativo, ['Ausente sin aviso']);
 });
+
+test('describirCambios: dice qué se modificó, qué había antes, por quién y cuándo; sin cambios no marca nada', () => {
+  const dia = [{ hora: '16:25', origen: 'tango', anulada: false }, { hora: '07:30', origen: 'manual', anulada: false, motivo: 'Falta la entrada', creado_por: 'u1', creado_en: '2026-11-28T10:32:00Z' }];
+  const antes = F.calcularDia({ fecha: LUN, horas: ['16:25'], horario: HOR }), ahora = F.calcularDia({ fecha: LUN, horas: ['07:30', '16:25'], horario: HOR });
+  const r = F.describirCambios({ fichadasDia: dia, antes, ahora, quien: u => ({ u1: 'Ana' }[u]), cuando: t => 'hace un rato' });
+  assert.equal(r.modificado, true);
+  assert.equal(r.lineas[0], 'Fichadas — antes: 16:25 → ahora: 07:30 · 16:25');
+  assert.ok(r.lineas.includes('+ 07:30 agregada por RRHH (Falta la entrada) — Ana, hace un rato'));
+  assert.ok(r.lineas.includes('Normal: 0,00 h → 7,00 h'));                 // sale 35 min antes del horario: se paga lo trabajado
+  // fichada de Tango anulada
+  const d2 = [{ hora: '09:08', origen: 'tango', anulada: true, motivo: 'Llegada tarde perdonada', anulada_por: 'u1', anulada_en: 'x' }, { hora: '08:00', origen: 'manual', anulada: false, motivo: 'Llegada tarde perdonada' }, { hora: '17:00', origen: 'tango', anulada: false }];
+  const r2 = F.describirCambios({ fichadasDia: d2, antes: { horas: ['09:08', '17:00'], pagado: {} }, ahora: { horas: ['08:00', '17:00'], pagado: {} } });
+  assert.ok(r2.lineas.some(l => l.startsWith('− 09:08 anulada (Llegada tarde perdonada)')));
+  // extra aprobada distinta de la calculada
+  const r3 = F.describirCambios({ fichadasDia: [], antes: { horas: [], pagado: {} }, ahora: { horas: ['08:00', '19:00'], pagado: { 'EXTRA 50%': 120 } }, aprobacion: { extra50_aprobada_min: 90, extra100_aprobada_min: null } });
+  assert.deepEqual(r3.lineas, ['Extra 50 % aprobada: calculada 2,00 h → aprobada 1,50 h']);
+  // sin cambios: lo calculado y aprobado coinciden, solo fichadas de Tango
+  const r4 = F.describirCambios({ fichadasDia: [{ hora: '08:00', origen: 'tango', anulada: false }], antes: { horas: ['08:00'], pagado: {} }, ahora: { horas: ['08:00'], pagado: { 'EXTRA 50%': 60 } }, aprobacion: { extra50_aprobada_min: 60 } });
+  assert.deepEqual(r4, { modificado: false, lineas: [] });
+  // una fichada agregada y luego anulada no cuenta como cambio
+  assert.equal(F.describirCambios({ fichadasDia: [{ hora: '07:00', origen: 'manual', anulada: true }], antes: { horas: [], pagado: {} }, ahora: { horas: [], pagado: {} } }).modificado, false);
+});
