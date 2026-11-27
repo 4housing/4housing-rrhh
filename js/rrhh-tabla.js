@@ -50,8 +50,11 @@
     return [...m.entries()].sort((a, b) => comparar(a[1], b[1])).map(e => e[0]);
   }
   const coincide = (texto, buscado) => !buscado || sinTildes(texto).includes(sinTildes(buscado));
+  /** Un título puede ir en dos líneas con un salto («Extra 50 %\n(h)»): el ancho de la columna se mide por la línea más larga. */
+  const lineasTitulo = t => String(t == null ? '' : t).split('\n');
+  const tituloPlano = t => lineasTitulo(t).join(' ');
 
-  const logica = { comparar, filtrar, ordenar, opciones, coincide, textoDe, valorDe };
+  const logica = { comparar, filtrar, ordenar, opciones, coincide, textoDe, valorDe, lineasTitulo, tituloPlano };
 
   /* ---------------- DOM ---------------- */
   const esc0 = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -82,7 +85,7 @@
       const cs = td ? getComputedStyle(td) : null, ch = th ? getComputedStyle(th) : null;
       const fam = (cs && cs.fontFamily) || 'sans-serif', tam = (cs && cs.fontSize) || '12.5px';
       const normal = '400 ' + tam + ' ' + fam, negrita = '700 ' + ((ch && ch.fontSize) || tam) + ' ' + ((ch && ch.fontFamily) || fam);
-      let w = medir(c.titulo, negrita, 20 + 44);                            // relleno + iconos de ordenar/filtrar
+      let w = Math.max(...lineasTitulo(c.titulo).map(t => medir(t, negrita, 20 + 44)));   // relleno + iconos de ordenar/filtrar; con título en dos líneas, la más larga
       for (const f of filas) w = Math.max(w, medir(textoDe(c, f), normal, 22));
       if (est.pieTextos && est.pieTextos[c.k]) w = Math.max(w, medir(est.pieTextos[c.k], '700 ' + tam + ' ' + fam, 34));    // la fila de totales va en negrita
       return Math.max(ANCHO_MIN, Math.min(w, 520));
@@ -107,8 +110,8 @@
         const st = c.sticky ? ' st' + (!cols[i + 1] || !cols[i + 1].sticky ? ' stl' : '') : '';
         const style = 'width:' + ancho(c) + 'px;min-width:' + ancho(c) + 'px;max-width:' + ancho(c) + 'px' + (c.sticky ? ';left:' + izq + 'px' : '');
         if (c.sticky) izq += ancho(c);
-        return '<th data-k="' + esc(c.k) + '" class="' + (c.cls || '') + st + '" style="' + style + '"><div class="th-in"><span class="th-t" data-ord="' + esc(c.k) + '" title="Ordenar">' + esc(c.titulo) + '</span>'
-          + '<span class="th-ord">' + ord + '</span><button type="button" class="th-fil' + (est.filtros[c.k] ? ' on' : '') + '" data-fil="' + esc(c.k) + '" aria-label="Filtrar ' + esc(c.titulo) + '" title="Filtrar">▾</button></div>'
+        return '<th data-k="' + esc(c.k) + '" class="' + (c.cls || '') + st + '" style="' + style + '"><div class="th-in"><span class="th-t' + (/\n/.test(c.titulo) ? ' dos' : '') + '" data-ord="' + esc(c.k) + '" title="Ordenar">' + esc(c.titulo) + '</span>'
+          + '<span class="th-ord">' + ord + '</span><button type="button" class="th-fil' + (est.filtros[c.k] ? ' on' : '') + '" data-fil="' + esc(c.k) + '" aria-label="Filtrar ' + esc(tituloPlano(c.titulo)) + '" title="Filtrar">▾</button></div>'
           + '<span class="th-res" data-res="' + esc(c.k) + '" title="Arrastrá para cambiar el ancho · doble clic: autoajuste"></span></th>';
       }).join('') + '</tr>';
       return '<thead>' + h1 + h2 + '</thead>';

@@ -210,5 +210,30 @@
     return { modificado: lineas.length > 0, lineas };
   }
 
-  return { leerTxt, armarTxt, calcularDia, armarPartes, clasificar, resumenPersonas, describirCambios, JUSTIFICACION, EXTRAS_ALTAS_MIN, codigoFichador, legajoDe, hm, fmt, redondear, diaSemana, NOMBRE_DIA };
+  /* ------------------------ calendario visual ------------------------ */
+  const horasCal = min => (Math.round(min / 60 * 100) / 100).toString().replace('.', ',');
+  /** Duración legible: múltiplos de 30 minutos en horas («1,5 h»); el resto en horas y minutos («17 min», «1 h 8 min»). */
+  const duracion = min => (min % 30 === 0 ? horasCal(min) + ' h' : (min >= 60 ? Math.floor(min / 60) + ' h ' + (min % 60) + ' min' : min + ' min'));
+  /**
+   * Qué se ve en la celda de una persona y un día del calendario. p: parte con { pagado, marcas, n, esperadoMin, justificacion, codigos }.
+   * → { texto, clase: 'ok'|'vac'|'justificada'|'injustificada'|'unica'|'fer'|'vacio', extras:'+1,5 h 50 % · +2 h 100 %', menos:'−1 h' }
+   */
+  function celdaCalendario(p) {
+    const cods = p.codigos || [], normal = p.pagado['NORMAL 1'] || 0, e50 = p.pagado['EXTRA 50%'] || 0, e100 = p.pagado['EXTRA 100%'] || 0;
+    const extras = [e50 ? '+' + duracion(e50) + ' 50 %' : '', e100 ? '+' + duracion(e100) + ' 100 %' : ''].filter(Boolean).join(' · ');
+    if (p.marcas.includes('ausente')) {
+      if (cods.some(c => c === 'VACJOR' || c === 'VACM')) return { texto: 'Vac.', clase: 'vac', extras: '', menos: '' };
+      if (cods.includes('HSENF')) return { texto: 'Enf.', clase: 'justificada', extras: '', menos: '' };
+      if (cods.includes('LICART')) return { texto: 'ART', clase: 'justificada', extras: '', menos: '' };
+      if (!cods.includes('HSINJ') && p.justificacion) return { texto: 'Aus J.', clase: 'justificada', extras: '', menos: '' };
+      return { texto: 'Aus. Inj.', clase: 'injustificada', extras: '', menos: '' };            // sin novedad (sin aviso) o ya cargada como injustificada
+    }
+    if (p.n === 1) return { texto: '?', clase: 'unica', extras: '', menos: '' };                  // una sola fichada: falta completar
+    if (p.marcas.includes('sin_horario')) return { texto: '·', clase: 'ok', extras: '', menos: '' };
+    const feriado = p.marcas.includes('feriado');
+    const menos = p.esperadoMin && normal < p.esperadoMin ? '−' + duracion(p.esperadoMin - normal) : '';
+    return { texto: feriado ? 'Fer.' : normal ? horasCal(normal) : '', clase: feriado ? 'fer' : (normal || extras ? 'ok' : 'vacio'), extras, menos };
+  }
+
+  return { leerTxt, armarTxt, calcularDia, armarPartes, clasificar, resumenPersonas, describirCambios, celdaCalendario, JUSTIFICACION, EXTRAS_ALTAS_MIN, codigoFichador, legajoDe, hm, fmt, redondear, diaSemana, NOMBRE_DIA };
 });

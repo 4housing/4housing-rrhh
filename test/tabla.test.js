@@ -44,3 +44,9 @@ test('Costo por mes: sumar() de las filas que quedan filtradas, exacto en centav
   assert.equal(t.total, 103.30);
   assert.equal(M.sumar([], ['2026-08']).total, 0);
 });
+
+test('títulos en dos líneas: el ancho se mide por la línea más larga y el texto plano los junta', () => {
+  assert.deepEqual(L.lineasTitulo('Extra 50 %\n(h)'), ['Extra 50 %', '(h)']);
+  assert.deepEqual(L.lineasTitulo('Persona'), ['Persona']);
+  assert.equal(L.tituloPlano('Fuera de\nhorario (min)'), 'Fuera de horario (min)');
+});
