@@ -176,6 +176,7 @@ table.tbl.fija{table-layout:fixed;min-width:0;}
       <button class="navbtn" type="button" data-vista="bonos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.3 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z"/></svg><span>Bonos</span></button>
       <button class="navbtn" type="button" data-vista="controles"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg><span>Controles</span></button>
       <button class="navbtn" type="button" data-vista="asientos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 3h14v18H5z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><span>Asientos</span></button>
+      <button class="navbtn" type="button" data-vista="fichadas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg><span>Fichadas</span></button>
     </nav>
     <div class="sp"></div>
     <div class="data-actions">
@@ -214,6 +215,8 @@ table.tbl.fija{table-layout:fixed;min-width:0;}
 <script src="js/rrhh-vista-controles.js"></script>
 <script src="js/rrhh-asientos.js"></script>
 <script src="js/rrhh-vista-asientos.js"></script>
+<script src="js/rrhh-fichadas.js"></script>
+<script src="js/rrhh-vista-fichadas.js"></script>
 <script src="js/rrhh-importador.js"></script>
 <script>
 /* ==========================================================================
@@ -266,7 +269,7 @@ function vistaSinSector(perfil){
 // (son sueldos: el valor por defecto es negar). Solo visión (lector) nunca edita. La base es la que manda; esto solo evita
 // mostrar pantallas que después no se podrían usar.
 const RRHH_SECCIONES = ['liquidacion', 'costos', 'config'];
-const VISTA_SECCION = { importar: 'liquidacion', costos: 'costos', mesames: 'costos', bonos: 'costos', controles: 'liquidacion', asientos: 'liquidacion' };
+const VISTA_SECCION = { importar: 'liquidacion', costos: 'costos', mesames: 'costos', bonos: 'costos', controles: 'liquidacion', asientos: 'liquidacion', fichadas: 'liquidacion' };
 const PERM = { ver: new Set(), editar: new Set() };
 function permisosRrhh(perfil, fila){
   if (perfil.es_direccion) { RRHH_SECCIONES.forEach(x => { PERM.ver.add(x); PERM.editar.add(x); }); return; }
@@ -298,6 +301,7 @@ const VISTAS = {
   costos: () => RRHHVistaCostos.montar({ sb, $main, esc, PERM, XLSX, Informe: RRHHInformeCosto, Tabla: RRHHTabla, titulo }),
   mesames: () => RRHHVistaMesAMes.montar({ sb, $main, esc, PERM, XLSX, Informe: RRHHInformeCosto, MesAMes: RRHHMesAMes, Tabla: RRHHTabla, titulo }),
   bonos: () => RRHHVistaBonos.montar({ sb, $main, esc, PERM, XLSX, Bonos: RRHHBonos, Calc: RRHHCalculo, Tabla: RRHHTabla, titulo }),
+  fichadas: () => RRHHVistaFichadas.montar({ sb, $main, esc, PERM, XLSX, Fichadas: RRHHFichadas, Tabla: RRHHTabla, titulo }),
   asientos: () => RRHHVistaAsientos.montar({ $main, esc, PERM, XLSX, Asientos: RRHHAsientos, Tabla: RRHHTabla, titulo }),
   controles: () => RRHHVistaControles.montar({ sb, $main, esc, PERM, Calc: RRHHCalculo, F931Pdf: RRHHF931Pdf, cargarPdfJs, titulo }),
 };
