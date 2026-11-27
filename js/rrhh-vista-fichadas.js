@@ -12,7 +12,7 @@
     feriado: 'Feriado', revisar_feriado: 'Revisar feriado', mas_de_dos: 'Más de 2 fichadas', sin_horario: 'Sin horario', dia_sin_horario: 'Día sin horario' };
   const ESTADO = { ok: 'Sin novedades', extra: 'Extra por aprobar', revisar: 'Por revisar', revisado: 'Revisado' };
   const horasTxt = min => (min ? (min / 60).toFixed(2).replace('.', ',') : '');
-  const ORDEN = { rrhh_novedades: ['fecha', 'legajo', 'id'], rrhh_fichadas: ['fecha', 'legajo', 'hora'], rrhh_partes_dia: ['fecha', 'legajo'], rrhh_empleados: ['legajo'], rrhh_legajo_fichadas: ['legajo'], rrhh_horarios: ['codigo'], rrhh_feriados: ['fecha'] };
+  const ORDEN = { rrhh_novedades_carga: ['fecha', 'legajo', 'id'], rrhh_fichadas: ['fecha', 'legajo', 'hora'], rrhh_partes_dia: ['fecha', 'legajo'], rrhh_empleados: ['legajo'], rrhh_legajo_fichadas: ['legajo'], rrhh_horarios: ['codigo'], rrhh_feriados: ['fecha'] };
   async function traerTodo(sb, tabla, columnas, filtrar) {
     const out = [];
     for (let desde = 0; ; desde += 1000) {                       // la base entrega máx. 1000 filas por pedido
@@ -102,7 +102,7 @@
         est.nombres = new Map(emp.map(e => [e.legajo, e.nombre]));
         est.fichadas = fich; est.dias = new Map(dias.map(d => [d.legajo + '|' + d.fecha, d]));
         est.novGuard = [];     // novedades cargadas en la app (sql/rrhh_07_novedades.sql): también justifican la ausencia; si la tabla todavía no existe, se sigue sin ellas
-        try { est.novGuard = await traerTodo(sb, 'rrhh_novedades', '*', q => q.gte('fecha', desde).lte('fecha', hasta)); } catch (e) { /* sin tabla de novedades */ }
+        try { est.novGuard = await traerTodo(sb, 'rrhh_novedades_carga', '*', q => q.gte('fecha', desde).lte('fecha', hasta)); } catch (e) { /* sin tabla de novedades */ }
         if (!est.perfiles.size) { try { const pf = await traerTodo(sb, 'perfiles', 'id,nombre,email'); est.perfiles = new Map(pf.map(x => [x.id, x.nombre || x.email || ''])); } catch (e) { /* sin acceso a perfiles: se muestra «RRHH» */ } }
       } catch (e) { $('fi-tabla').innerHTML = '<div class="empty">No pude cargar los datos: ' + esc(e.message) + '. Si dice que una tabla no existe, falta correr <code>rrhh_06_fichadas.sql</code>.</div>'; return; }
       recalcular();
@@ -281,6 +281,7 @@
           <label>Nota<input type="text" id="fp-nota" size="34" value="${esc((est.dias.get(p.id) || {}).nota || '')}"${ed}></label>${puedeEditar ? '<button type="button" class="btn" id="fp-revisar">Guardar y marcar revisado</button>' : ''}</div>
         ${p.cambios.modificado ? '<div class="est av" style="margin-top:12px"><b>Modificado.</b> Qué había antes y qué cambió:<br>' + p.cambios.lineas.map(esc).join('<br>') + '</div>' : ''}
         ${puedeEditar && N ? `<div class="barra" style="margin-top:14px"><b>Cargar novedad de este día</b>
+          <label>Empresa<select id="fp-nemp">${Object.entries(N.EMPRESAS).map(([k, v]) => '<option value="' + k + '">' + esc(v) + '</option>').join('')}</select></label>
           <label>Código<input type="text" id="fp-ncod" list="fp-ncods" style="width:120px" autocomplete="off"></label><datalist id="fp-ncods">${N.CODIGOS.map(c => '<option value="' + esc(c.codigo) + '">' + esc(c.descripcion) + '</option>').join('')}</datalist>
           <label>Cantidad<input type="text" id="fp-ncant" inputmode="decimal" style="width:70px" value="${p.esperadoMin ? horasTxt(p.esperadoMin).replace(/,00$/, '') : ''}"></label>
           <label>Observaciones<input type="text" id="fp-nobs" maxlength="200" size="26"></label><button type="button" class="btn sec" id="fp-nov">Cargar novedad</button>
@@ -316,10 +317,10 @@
         else if (b.dataset.acc === 'anular') { const m = window.prompt('Motivo para anular esta fichada (obligatorio):'); if (!m || !m.trim()) return; await cambiarAnulada(b.dataset.id, true, m.trim()); }
         else if (b.dataset.acc === 'reactivar') await cambiarAnulada(b.dataset.id, false);
         else if (b.id === 'fp-nov') {
-          const n = N.normalizar({ fecha: p.fecha, legajo: p.legajo, codigo: $('fp-ncod').value, cantidad: $('fp-ncant').value, valor: '', observaciones: $('fp-nobs').value, origen: 'fichadas' });
+          const n = N.normalizar({ empresa: $('fp-nemp').value, fecha: p.fecha, legajo: p.legajo, codigo: $('fp-ncod').value, cantidad: $('fp-ncant').value, valor: '', observaciones: $('fp-nobs').value, origen: 'fichadas' });
           const errs = N.validar(n); if (errs.length) { alert(errs.join(' ')); return; }
           if (N.duplicada(n, est.novGuard) && !window.confirm('Ya hay una novedad ' + n.codigo + ' ese día para ese legajo. ¿Cargar otra igual?')) return;
-          const { data, error } = await sb.from('rrhh_novedades').insert(n).select(); if (error) throw new Error(error.message);
+          const { data, error } = await sb.from('rrhh_novedades_carga').insert(n).select(); if (error) throw new Error(error.message);
           est.novGuard.push(data[0]);
         } else if (b.id === 'fp-revisar') {
           const fila = { legajo: p.legajo, fecha: p.fecha, estado: 'revisado', extra50_aprobada_min: Math.max(0, parseInt($('fp-a50').value, 10) || 0), extra100_aprobada_min: Math.max(0, parseInt($('fp-a100').value, 10) || 0), nota: $('fp-nota').value.trim() || null, revisado_por: est.uid, revisado_en: new Date().toISOString() };

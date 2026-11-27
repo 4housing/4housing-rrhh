@@ -18,17 +18,20 @@
     { codigo: 'FALLECIM', descripcion: 'Fallecimiento', tipo: 'horas' }, { codigo: 'EXAMEN', descripcion: 'Examen', tipo: 'horas' }, { codigo: 'MÉDICO', descripcion: 'Médico', tipo: 'horas' },
     { codigo: 'TRAMITE', descripcion: 'Trámite', tipo: 'horas' }, { codigo: 'SANGRE', descripcion: 'Donación de sangre', tipo: 'horas' }, { codigo: 'MUDANZA', descripcion: 'Mudanza', tipo: 'horas' },
     { codigo: 'ADELANTO', descripcion: '', tipo: 'importe' }, { codigo: 'DESCADEL', descripcion: '', tipo: 'importe' }];
+  /** Delta se importa por empresa. Los códigos son los que ya usa el módulo (4H y 4H_OC). */
+  const EMPRESAS = { '4H': '4H · 4Commerce', '4H_OC': '4H OC · 4Commerce órdenes de compra' };
   const HEADERS = ['Fecha', 'Número de legajo', 'Código de novedad', 'Cantidad', 'Valor', 'Observaciones'];
   const num2 = x => (typeof x === 'number' ? x : Number(String(x == null ? '' : x).trim().replace(',', '.')));
   /** Normaliza lo que escribe la persona. Cantidad y valor aceptan coma decimal («7,5»). */
   function normalizar(n) {
     const cant = n.cantidad === '' || n.cantidad == null ? 0 : num2(n.cantidad), val = n.valor === '' || n.valor == null ? 0 : num2(n.valor);
-    return { fecha: String(n.fecha || '').trim(), legajo: Number(n.legajo), codigo: String(n.codigo || '').trim().toUpperCase(), cantidad: cant, valor: val,
+    return { empresa: String(n.empresa || '').trim(), fecha: String(n.fecha || '').trim(), legajo: Number(n.legajo), codigo: String(n.codigo || '').trim().toUpperCase(), cantidad: cant, valor: val,
       observaciones: n.observaciones == null ? null : (String(n.observaciones).trim() || null), origen: n.origen === 'fichadas' ? 'fichadas' : 'manual' };
   }
   /** → lista de errores (vacía si está bien). */
   function validar(n) {
     const e = [];
+    if (!EMPRESAS[n.empresa]) e.push('Elegí la empresa.');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(n.fecha) || isNaN(new Date(n.fecha + 'T12:00:00'))) e.push('La fecha no es válida.');
     if (!Number.isInteger(n.legajo) || n.legajo <= 0) e.push('El legajo tiene que ser un número.');
     if (!n.codigo) e.push('Falta el código de novedad.'); else if (n.codigo.length > 30) e.push('El código es demasiado largo.');
@@ -37,7 +40,7 @@
     if (n.observaciones && n.observaciones.length > 200) e.push('Las observaciones pasan los 200 caracteres.');
     return e;
   }
-  const clave = n => n.legajo + '|' + n.fecha + '|' + n.codigo;
+  const clave = n => n.empresa + '|' + n.legajo + '|' + n.fecha + '|' + n.codigo;
   /** Renglones ya cargados con el mismo legajo, fecha y código (para avisar antes de duplicar). */
   const duplicada = (n, existentes) => existentes.some(x => clave(x) === clave(n));
   /** Número de serie de Excel de una fecha ISO (sin pasar por Date: evita el corrimiento de un día por zona horaria). */
@@ -47,5 +50,5 @@
     const o = [...novs].sort((a, b) => a.fecha.localeCompare(b.fecha) || a.legajo - b.legajo || a.codigo.localeCompare(b.codigo));
     return [HEADERS.slice()].concat(o.map(n => [serial(n.fecha), n.legajo, n.codigo, n.cantidad, n.valor, n.observaciones || '']));
   }
-  return { CODIGOS, HEADERS, normalizar, validar, clave, duplicada, serial, filasDelta };
+  return { CODIGOS, EMPRESAS, HEADERS, normalizar, validar, clave, duplicada, serial, filasDelta };
 });
