@@ -12,7 +12,7 @@
     feriado: 'Feriado', revisar_feriado: 'Revisar feriado', mas_de_dos: 'Más de 2 fichadas', sin_horario: 'Sin horario', dia_sin_horario: 'Día sin horario' };
   const ESTADO = { ok: 'Sin novedades', extra: 'Extra por aprobar', revisar: 'Por revisar', revisado: 'Revisado' };
   const horasTxt = min => (min ? (min / 60).toFixed(2).replace('.', ',') : '');
-  const ORDEN = { rrhh_fichadas: ['fecha', 'legajo', 'hora'], rrhh_partes_dia: ['fecha', 'legajo'], rrhh_empleados: ['legajo'], rrhh_legajo_fichadas: ['legajo'], rrhh_horarios: ['codigo'], rrhh_feriados: ['fecha'] };
+  const ORDEN = { rrhh_novedades: ['fecha', 'legajo', 'id'], rrhh_fichadas: ['fecha', 'legajo', 'hora'], rrhh_partes_dia: ['fecha', 'legajo'], rrhh_empleados: ['legajo'], rrhh_legajo_fichadas: ['legajo'], rrhh_horarios: ['codigo'], rrhh_feriados: ['fecha'] };
   async function traerTodo(sb, tabla, columnas, filtrar) {
     const out = [];
     for (let desde = 0; ; desde += 1000) {                       // la base entrega máx. 1000 filas por pedido
@@ -31,12 +31,12 @@
   const fechaIso = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
 
   async function montar(ctx) {
-    const { sb, $main, esc, PERM, XLSX, Fichadas: F, Tabla, titulo } = ctx;
+    const { sb, $main, esc, PERM, XLSX, Fichadas: F, Tabla, titulo, Novedades: N } = ctx;
     titulo('Fichadas', 'Fichadas de Tango Fichadas: parte diario, resumen de la quincena, correcciones de RRHH y archivo depurado para Delta');
     if (!PERM.ver.has('liquidacion')) { $main.innerHTML = '<div class="empty">Para ver las fichadas hace falta permiso de <b>Ver</b> en «Liquidación». Pedíselo a dirección en el portal.</div>'; return; }
     const puedeEditar = PERM.editar.has('liquidacion');
     const hoy = new Date(), mesHoy = hoy.getFullYear() + '-' + pad(hoy.getMonth() + 1);
-    const est = { mes: mesHoy, q: hoy.getDate() <= 15 ? '1' : '2', fichadas: [], legajos: new Map(), horarios: new Map(), feriados: new Set(), nombres: new Map(), perfiles: new Map(), dias: new Map(), just: new Map(),
+    const est = { mes: mesHoy, q: hoy.getDate() <= 15 ? '1' : '2', fichadas: [], novGuard: [], legajos: new Map(), horarios: new Map(), feriados: new Set(), nombres: new Map(), perfiles: new Map(), dias: new Map(), just: new Map(),
       partes: [], filtro: 'decision', vista: 'partes', limExtras: (() => { try { return Number(localStorage.getItem('rrhh-fichadas-extras-altas')) || 30; } catch (e) { return 30; } })(), abierto: null, lectura: null, uid: null, grid: null, gridRes: null, resumen: [] };
 
     $main.innerHTML = `
@@ -101,9 +101,16 @@
         est.feriados = new Set(fer.map(f => f.fecha));
         est.nombres = new Map(emp.map(e => [e.legajo, e.nombre]));
         est.fichadas = fich; est.dias = new Map(dias.map(d => [d.legajo + '|' + d.fecha, d]));
+        est.novGuard = [];     // novedades cargadas en la app (sql/rrhh_07_novedades.sql): también justifican la ausencia; si la tabla todavía no existe, se sigue sin ellas
+        try { est.novGuard = await traerTodo(sb, 'rrhh_novedades', '*', q => q.gte('fecha', desde).lte('fecha', hasta)); } catch (e) { /* sin tabla de novedades */ }
         if (!est.perfiles.size) { try { const pf = await traerTodo(sb, 'perfiles', 'id,nombre,email'); est.perfiles = new Map(pf.map(x => [x.id, x.nombre || x.email || ''])); } catch (e) { /* sin acceso a perfiles: se muestra «RRHH» */ } }
       } catch (e) { $('fi-tabla').innerHTML = '<div class="empty">No pude cargar los datos: ' + esc(e.message) + '. Si dice que una tabla no existe, falta correr <code>rrhh_06_fichadas.sql</code>.</div>'; return; }
       recalcular();
+    }
+    /** Novedades del archivo de Delta (si se subió) + las cargadas en la app para ese legajo y día. */
+    function codigosDe(k) {
+      const g = est.novGuard.filter(n => n.legajo + '|' + n.fecha === k).map(n => n.codigo), a = est.just.get(k) || [];
+      return g.length || a.length ? [...a, ...g] : undefined;
     }
     function recalcular() {
       const [desde, hasta] = rango();
@@ -111,7 +118,7 @@
       const legajos = new Map(est.legajos);
       for (const f of efectivas) if (!legajos.has(f.legajo)) legajos.set(f.legajo, { horario: null, unidad: 30, habilitado: true });   // con fichadas pero sin configurar: se ve como «sin horario»
       est.partes = F.armarPartes({ fichadas: efectivas, legajos, horarios: est.horarios, feriados: est.feriados, desde, hasta }).map(p => {
-        const rev = est.dias.get(p.legajo + '|' + p.fecha), codigos = est.just.get(p.legajo + '|' + p.fecha), c = F.clasificar(p, codigos);
+        const rev = est.dias.get(p.legajo + '|' + p.fecha), codigos = codigosDe(p.legajo + '|' + p.fecha), c = F.clasificar(p, codigos);
         const revisado = !!(rev && rev.estado === 'revisado');
         const dia = est.fichadas.filter(f => f.legajo === p.legajo && f.fecha === p.fecha);
         let cambios = { modificado: false, lineas: [] }, antesHoras = [];
@@ -273,6 +280,11 @@
         <div class="barra" style="margin-top:14px"><label>Extra 50 % aprobada (min)<input type="number" min="0" step="1" id="fp-a50" value="${a50}"${ed}></label><label>Extra 100 % aprobada (min)<input type="number" min="0" step="1" id="fp-a100" value="${a100}"${ed}></label>
           <label>Nota<input type="text" id="fp-nota" size="34" value="${esc((est.dias.get(p.id) || {}).nota || '')}"${ed}></label>${puedeEditar ? '<button type="button" class="btn" id="fp-revisar">Guardar y marcar revisado</button>' : ''}</div>
         ${p.cambios.modificado ? '<div class="est av" style="margin-top:12px"><b>Modificado.</b> Qué había antes y qué cambió:<br>' + p.cambios.lineas.map(esc).join('<br>') + '</div>' : ''}
+        ${puedeEditar && N ? `<div class="barra" style="margin-top:14px"><b>Cargar novedad de este día</b>
+          <label>Código<input type="text" id="fp-ncod" list="fp-ncods" style="width:120px" autocomplete="off"></label><datalist id="fp-ncods">${N.CODIGOS.map(c => '<option value="' + esc(c.codigo) + '">' + esc(c.descripcion) + '</option>').join('')}</datalist>
+          <label>Cantidad<input type="text" id="fp-ncant" inputmode="decimal" style="width:70px" value="${p.esperadoMin ? horasTxt(p.esperadoMin).replace(/,00$/, '') : ''}"></label>
+          <label>Observaciones<input type="text" id="fp-nobs" maxlength="200" size="26"></label><button type="button" class="btn sec" id="fp-nov">Cargar novedad</button>
+          ${est.novGuard.filter(n => n.legajo === p.legajo && n.fecha === p.fecha).map(n => '<span class="est ok">' + esc(n.codigo + ' ' + Number(n.cantidad || n.valor)) + '</span>').join(' ')}</div>` : ''}
         <p class="nota">Calculado por la app: ${esc(Object.entries(p.pagado).map(([k, v]) => k + ' ' + horasTxt(v) + ' h').join(' · ') || 'nada para pagar')}. Las extras aprobadas se cargan en minutos (30 = media hora).</p></div></div>`;
       $('fi-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
@@ -303,7 +315,13 @@
           await agregar(p, s.hora, s.motivo); }
         else if (b.dataset.acc === 'anular') { const m = window.prompt('Motivo para anular esta fichada (obligatorio):'); if (!m || !m.trim()) return; await cambiarAnulada(b.dataset.id, true, m.trim()); }
         else if (b.dataset.acc === 'reactivar') await cambiarAnulada(b.dataset.id, false);
-        else if (b.id === 'fp-revisar') {
+        else if (b.id === 'fp-nov') {
+          const n = N.normalizar({ fecha: p.fecha, legajo: p.legajo, codigo: $('fp-ncod').value, cantidad: $('fp-ncant').value, valor: '', observaciones: $('fp-nobs').value, origen: 'fichadas' });
+          const errs = N.validar(n); if (errs.length) { alert(errs.join(' ')); return; }
+          if (N.duplicada(n, est.novGuard) && !window.confirm('Ya hay una novedad ' + n.codigo + ' ese día para ese legajo. ¿Cargar otra igual?')) return;
+          const { data, error } = await sb.from('rrhh_novedades').insert(n).select(); if (error) throw new Error(error.message);
+          est.novGuard.push(data[0]);
+        } else if (b.id === 'fp-revisar') {
           const fila = { legajo: p.legajo, fecha: p.fecha, estado: 'revisado', extra50_aprobada_min: Math.max(0, parseInt($('fp-a50').value, 10) || 0), extra100_aprobada_min: Math.max(0, parseInt($('fp-a100').value, 10) || 0), nota: $('fp-nota').value.trim() || null, revisado_por: est.uid, revisado_en: new Date().toISOString() };
           const { data, error } = await sb.from('rrhh_partes_dia').upsert(fila, { onConflict: 'legajo,fecha' }).select(); if (error) throw new Error(error.message);
           est.dias.set(p.id, data[0]); est.abierto = null; $('fi-panel').innerHTML = '';
