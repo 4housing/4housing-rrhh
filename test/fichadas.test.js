@@ -99,3 +99,33 @@ test('armarPartes: ausentes de días hábiles, sin parte en fin de semana ni fer
   const orden = F.armarPartes({ fichadas: [{ legajo: 1, fecha: '2026-03-02', hora: '17:00' }, { legajo: 1, fecha: '2026-03-02', hora: '08:00' }], legajos: new Map([[1, { horario: 'H' }]]), horarios: new Map([['H', HOR]]), desde: '2026-03-02', hasta: '2026-03-02' });
   assert.deepEqual(orden[0].horas, ['08:00', '17:00']);                     // las fichadas se muestran ordenadas por hora
 });
+
+test('clasificar: solo pide decisión lo que falta o es llamativo; la ausencia con novedad ya está resuelta', () => {
+  const parte = (horas, extra) => ({ ...F.calcularDia({ fecha: LUN, horas, horario: HOR, unidad: 30, ...(extra || {}) }) });
+  assert.equal(F.clasificar(parte(['07:40', '17:00'])).clase, 'ok');                 // llegar antes no se mira
+  assert.equal(F.clasificar(parte(['08:00', '17:40'])).clase, 'extra');              // solo extra para aprobar
+  assert.equal(F.clasificar(parte(['08:00'])).clase, 'revisar');                     // fichada única
+  assert.equal(F.clasificar(parte(['08:40', '17:00'])).clase, 'revisar');            // llegó tarde
+  assert.equal(F.clasificar(parte(['08:00', '17:40'], { feriado: true })).clase, 'revisar');
+  const aus = parte([]);
+  assert.equal(F.clasificar(aus).clase, 'revisar');
+  const j = F.clasificar(aus, ['HSTRA', 'HSENF']);
+  assert.deepEqual(j, { clase: 'ok', justificacion: 'Enfermedad' });                 // ausente con novedad de enfermedad
+  assert.equal(F.clasificar(aus, ['HSTRA']).clase, 'revisar');                       // una novedad que no justifica no la resuelve
+});
+
+test('resumenPersonas: totales por persona, extras aprobadas vs por aprobar y lo llamativo', () => {
+  const mk = (legajo, fecha, pagado, marcas, extra) => ({ legajo, horario: 'H', fecha, n: 2, pagado, marcas, ...extra });
+  const partes = [
+    mk(1, '2026-03-02', { 'NORMAL 1': 480, 'EXTRA 50%': 300 }, ['extra'], { clase: 'extra', revisado: false }),
+    mk(1, '2026-03-03', { 'NORMAL 1': 480, 'EXTRA 50%': 240 }, ['extra'], { clase: 'extra', revisado: true, aprob50: 180 }),
+    mk(1, '2026-03-04', { 'NORMAL 1': 480 }, ['tarde'], { clase: 'revisar', revisado: false }),
+    mk(2, '2026-03-02', {}, ['ausente'], { n: 0, clase: 'revisar', revisado: false }),
+    mk(2, '2026-03-03', {}, ['ausente'], { n: 0, clase: 'ok', justificacion: 'Enfermedad', revisado: false })];
+  const r = F.resumenPersonas(partes, { extrasAltasMin: 480 }), a = r[0], b = r[1];
+  assert.deepEqual(F.resumenPersonas(partes)[0].llamativo, []);                          // por defecto el límite es 30 h: 9 h de extras no es llamativo
+  assert.deepEqual([a.dias, a.normalMin, a.extra50Min, a.aprob50Min, a.extraPorAprobar, a.porRevisar], [3, 1440, 540, 180, 1, 1]);
+  assert.deepEqual(a.llamativo, ['Extras altas']);                                   // 540 min > 480
+  assert.deepEqual([b.dias, b.ausentesSinAviso, b.justificados], [0, 1, 1]);
+  assert.deepEqual(b.llamativo, ['Ausente sin aviso']);
+});
