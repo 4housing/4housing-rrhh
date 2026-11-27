@@ -76,9 +76,19 @@ Cada una dice por qué importa. Marcá la respuesta y la fecha cuando se resuelv
 | 15 | **Jornada parcial y Neuquén**: reglas especiales de horario, descanso o feriados. | Hay pocos casos; puede haber diferencias no detectadas. | |
 | 16 | **Extras llamativas**: ¿30 h por período es un buen umbral? | Define qué se marca en amarillo en el Resumen. | |
 | 17 | **Rutina diaria**: ¿quién sube el `.txt` y a qué hora? ¿Quién tiene permiso de ver y de editar? ¿Está confirmado que el servicio automático a Delta está apagado? | Si el servicio sigue prendido, llegan fichadas sin depurar. | |
-| 18 | **Vacaciones** (etapa 3): ¿quién entra a la app (cada persona, el jefe, RRHH)? ¿Cómo se aprueban los pedidos? ¿Cómo se calculan los días que corresponden a cada persona (antigüedad, proporcionales, qué se considera día hábil)? | Sin esto no se puede empezar. Después se generan VACJOR / VACM. | |
+| 18 | **Vacaciones** (etapa 3): ¿quién entra a la app (cada persona, el jefe, RRHH)? ¿Cómo se aprueban los pedidos? ¿Cómo se calculan los días que corresponden a cada persona (antigüedad, proporcionales, qué se considera día hábil)? | Sin esto no se puede empezar. Después se generan VACJOR / VACM. | **Parcial (2026-11-27):** cada empleado entra a ver su saldo y pedir; aprueban primero el jefe y luego RRHH; el cálculo de días se define con RRHH. Siguen abiertas las preguntas 21 a 25. |
 | 19 | **Segunda quincena de noviembre**: pasar el informe de partes de Delta para una prueba ciega del cálculo. | Hoy la regla se verificó con una sola quincena. | |
 | 20 | **Seguridad**: rotar la clave de Tango Fichadas y el token de desarrollador de Delta que se compartieron durante la configuración. | Quedaron expuestos en la conversación de trabajo. | |
 
+### Vacaciones (etapa 3): preguntas abiertas
+| # | Duda | Por qué importa | Respuesta |
+|---|---|---|---|
+| 21 | **Usuarios**: ¿todo el personal tiene cuenta Microsoft de la empresa (la que usa el portal)? Si no, ¿con qué entrarían? | El portal hoy solo entra con Microsoft. Sin cuenta no hay acceso propio. | |
+| 22 | **Jefes**: ¿quién es jefe de quién? ¿Un jefe aprueba solo a su equipo directo? ¿Y si el jefe está de vacaciones? | Define a quién le llega cada pedido. | |
+| 23 | **Cálculo de días**: regla exacta (antigüedad, ingreso en el año, días corridos o hábiles, sábados, feriados dentro del período). | La app no va a deducirlo; un error afecta el pago. | |
+| 24 | **Códigos**: ¿VACJOR y VACM son por tipo de pago (jornalizado / mensualizado)? ¿Qué cantidad lleva cada día (8 y 7 en el histórico)? ¿Depende de la persona o del horario? | Es lo que se genera para Delta. | |
+| 25 | **Reglas del pedido**: anticipación mínima, máximo de personas del equipo a la vez, si se pueden partir en períodos, qué pasa si se cancela uno ya aprobado. | Sin esto los pedidos se aceptan sin control. | |
+
 ## 8. Registro de cambios del diccionario
 - 2026-11-27: primera versión (circuito, glosario, clasificación, reglas, pantallas, qué se guarda y 20 dudas pendientes). Novedades v1 publicada; las extras aprobadas quedaron afuera hasta resolver la duda 10.
+- 2026-11-27: vacaciones: decisiones tomadas (cada empleado entra; aprueba jefe y luego RRHH; cálculo de días a definir con RRHH) y preguntas 21 a 25.
