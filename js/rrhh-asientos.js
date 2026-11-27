@@ -20,9 +20,9 @@
      · Coparticipación Operarios (55010) → se reparte entre proyectos según la base de la planilla COPAR (auxiliar Instructivo de fabricación).
      · Adelanto de coparticipación (55041) → préstamo al personal en dólares a la cotización indicada.
      · Redondeo (99999): acompaña a la línea de la persona que trae decimales.
-     · Sábado Taller (55013) de quienes no son de Neuquén → se JUSTIFICA con el informe «formato DATOS» de la app de planificación: cada sábado trabajado trae su
-       proyecto y su tarea; el importe de la persona se reparte en partes iguales entre sus sábados. Sin informe (o sin sábado planificado) y para horas extra y
-       feriados (55014/55030/55551) → un asiento que se computa al PROYECTO indicado
+     · Sábado Taller (55013) y horas extra / feriado (55014/55030/55551) de quienes no son de Neuquén → se reparten POR DÍA: los días pagados salen de las novedades
+       registradas (SABADO: partes iguales por día; HRSEX1: proporcional a las horas) y el proyecto y la tarea de cada día, del informe «formato DATOS» de la app de
+       planificación. Lo que no se pueda ubicar por día → un asiento que se computa al PROYECTO indicado
        (EERR «A) CMV VENTA», Instructivo = proyecto, Sueldos = «NO APLICA») con el MOTIVO de por qué se trabajaron. Más adelante el reparto por proyecto saldrá
        del informe de la app de planificación; por ahora va todo a un solo proyecto.
      · Todo lo demás NO se asienta: queda en «Sin destino» para que se vea.
@@ -127,6 +127,17 @@
     return /^\d+$/.test(tok) ? { cod: 'IF' + tok, desc: 'IF' + txt, supuesto: true } : { cod: tok, desc: txt, supuesto: false };
   }
 
+  /** Novedades registradas (Tango): solo se toman fecha, legajo, código y cantidad (nunca C.U.I.L. ni nombre). Interesan SABADO (días) y HRSEX1 (horas). */
+  function leerNovedades(filas) {
+    const out = [];
+    for (const f of filas || []) {
+      const cod = limpio(f['Cód. novedad'] != null ? f['Cód. novedad'] : f['Cod. novedad']).toUpperCase(), leg = f['Legajo'];
+      const d = f['Fecha'], fecha = d instanceof Date ? d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') : limpio(d).slice(0, 10);
+      if (!cod || leg == null || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) continue;
+      out.push({ fecha, legajo: String(leg).trim(), cod, cantidad: Number(f['Cantidad']) || 0 });
+    }
+    return out;
+  }
   const CANDIDATOS_REDONDEO = ['socios', 'individual', 'copart', 'neuquen', 'vac', 'bonoAdm', 'bonoOpe', 'copeOpe', 'difcat', 'sab'];
   const PRIORIDAD_REDONDEO = ['bonoAdm', 'bonoOpe', 'vac', 'copeOpe', 'neuquen', 'difcat', 'sab', 'individual', 'socios', 'copart'];
   const tipoDe = nro => ({ 55303: 'socios', 55035: 'hogar', 55300: 'movilidad', 55302: 'movilidad', 55041: 'prestamo', 55050: 'rentalAlq', 55051: 'rentalSrv',
@@ -153,8 +164,18 @@
     }
 
     const sabPorLegajo = new Map();                  // legajo → sábados trabajados con proyecto, según el informe de planificación
+    const datosDia = new Map();                      // legajo → fecha → fila del informe de planificación (cualquier día con proyecto)
+    const novPor = new Map();                        // legajo → { SABADO:[{fecha,cant}], HRSEX1:[…] }: días PAGADOS según las novedades registradas
+    for (const n of o.novedades || []) {
+      if (n.cod !== 'SABADO' && n.cod !== 'HRSEX1') continue;
+      if (!novPor.has(n.legajo)) novPor.set(n.legajo, { SABADO: [], HRSEX1: [] });
+      novPor.get(n.legajo)[n.cod].push({ fecha: n.fecha, cant: n.cantidad });
+    }
     for (const r of o.datos || []) {
-      if (r.dia !== 'sabado' || !esProyecto(r.proyecto)) continue;
+      if (!esProyecto(r.proyecto)) continue;
+      if (!datosDia.has(r.legajo)) datosDia.set(r.legajo, new Map());
+      if (!datosDia.get(r.legajo).has(r.fecha)) datosDia.get(r.legajo).set(r.fecha, r);
+      if (r.dia !== 'sabado') continue;
       if (!sabPorLegajo.has(r.legajo)) sabPorLegajo.set(r.legajo, new Map());
       if (!sabPorLegajo.get(r.legajo).has(r.fecha)) sabPorLegajo.get(r.legajo).set(r.fecha, r);
     }
@@ -165,7 +186,7 @@
     for (const p of pers.values()) {
       const g = {};                                    // grupos de la persona por tipo
       const sumar = (t, imp) => { g[t] = (g[t] || 0) + imp; };
-      let redondeo = 0, sabParte = 0;
+      let redondeo = 0, sabParte = 0, heParte = 0;
       const esNeu = p.lineas.some(l => l.nro === 55011);
       const sin0 = sinDestino.length;
       for (const l of p.lineas) {
@@ -178,7 +199,7 @@
           else if ([55301, 55304, 55305].includes(l.nro)) { if (p.ind) t = 'individual'; else { sd(p, l, 'Concepto de una persona sin asiento individual'); continue; } }
           else { sd(p, l, 'Sin regla de asiento todavía'); continue; }
         }
-        if (t === 'sab' && l.nro === 55013) sabParte += l.importe;
+        if (t === 'sab') { if (l.nro === 55013) sabParte += l.importe; else heParte += l.importe; }
         sumar(t, l.importe);
       }
       // comisión rental: cada importe al múltiplo de $500 más cercano; consume parte del redondeo de la persona
@@ -207,7 +228,7 @@
         else if (t === 'copart') D.pool.push({ p, imp });
         else if (t === 'vac') D.vac.push({ p, imp });
         else if (t === 'prestamo') D.prestamos.push({ p, imp });
-        else if (t === 'sab') { D.sab += imp; D.sabList.push({ p, imp, sabado: Math.min(to2(sabParte), imp) }); }
+        else if (t === 'sab') { D.sab += imp; D.sabList.push({ p, imp, sabado: to2(sabParte), he: to2(heParte) }); }
         else D[t] += imp;
       }
       if (g.copart != null && !p.sector) avisos.push(p.nombre + ': sin departamento en LEGAJOS; su coparticipación queda en «SIN SECTOR». Asignale un sector en la tabla de personas.');
@@ -282,37 +303,62 @@
         aux(a, n, 'INSTR', [{ cod: cod || '', desc: proy || 'A DEFINIR', imp }]);
       }
     }
-    const sabados = [];                               // detalle para revisar: persona, fecha, proyecto, tarea, importe
+    const sabados = [];                               // detalle para revisar: persona, concepto, fecha, proyecto, tarea, importe
     const conPago = new Set(D.sabList.filter(e => e.sabado > 0.005).flatMap(e => [String(e.p.legajo), String(e.p.legajoInforme)]));
     const sinPago = [...sabPorLegajo.entries()].filter(([l]) => !conPago.has(l));
     if (sinPago.length) avisos.push('Sábados trabajados en la planificación SIN «Sábado Taller» en el informe: legajo ' + sinPago.map(([l, m]) => l + ' (' + m.size + ')').join(', ') + '.');
+    const proyUsados = new Set();
     if (Math.abs(D.sab) > 0.005) {
       const proyBase = limpio(o.sabados && o.sabados.proyecto), motivo = limpio(o.sabados && o.sabados.motivo);
       const porProy = new Map(), tareas = new Map(), auxDe = new Map();
       const cfgProy = (o.config && o.config.proyectos) || {};
-      const sumaProy = (proy0, imp, tarea) => { let proy = proy0; if (proy0 !== proyBase && proy0 !== 'PROYECTO A DEFINIR') { const x = auxProyecto(proy0, cfgProy); proy = x.desc; auxDe.set(proy, x); if (x.supuesto) avisos.push('Proyecto «' + proy0 + '»: se usó el auxiliar «' + x.desc + '» (se supone el prefijo IF); confirmalo en la tabla de proyectos.'); }
+      const hayNov = (o.novedades || []).length > 0;
+      const sumaProy = (proy0, imp, tarea) => { let proy = proy0; if (proy0 !== proyBase && proy0 !== 'PROYECTO A DEFINIR') { const x = auxProyecto(proy0, cfgProy); proy = x.desc; auxDe.set(proy, x); proyUsados.add(proy0); if (x.supuesto) avisos.push('Proyecto «' + proy0 + '»: se usó el auxiliar «' + x.desc + '» (se supone el prefijo IF); confirmalo en la tabla de proyectos.'); }
         porProy.set(proy, to2((porProy.get(proy) || 0) + imp)); if (tarea) { if (!tareas.has(proy)) tareas.set(proy, new Set()); tareas.get(proy).add(tarea); } };
       let resto = 0;
+      const ids = p => [...new Set([String(p.legajo), String(p.legajoInforme)])];
+      const buscar = (mapa, p) => { for (const k of ids(p)) if (mapa.has(k)) return mapa.get(k); return null; };
+      const aBase = (e, concepto, imp, tarea) => { if (Math.abs(imp) < 0.005) return; resto = to2(resto + imp); sabados.push({ persona: e.p.nombre, legajo: e.p.legajo, concepto, fecha: '', proyecto: proyBase || 'A DEFINIR', tarea, importe: imp, origen: 'proyecto indicado' }); };
+      /** Reparte `monto` entre días [{fecha, peso}]: el proyecto de cada día sale del informe de planificación (si ese día no figura, va al proyecto indicado). */
+      const porDias = (e, concepto, monto, dias, origen) => {
+        const partes = repartir(monto, dias.map(d => d.peso));
+        dias.forEach((d, i) => {
+          const fila = (buscar(datosDia, e.p) || new Map()).get(d.fecha);
+          if (fila) { sumaProy(fila.proyecto, partes[i], fila.tarea); sabados.push({ persona: e.p.nombre, legajo: e.p.legajo, concepto, fecha: d.fecha, proyecto: fila.proyecto, tarea: fila.tarea, importe: partes[i], origen }); }
+          else { if ((o.datos || []).length) avisos.push(e.p.nombre + ': el ' + d.fecha + ' no figura con proyecto en el informe de planificación; va al proyecto indicado.'); resto = to2(resto + partes[i]); sabados.push({ persona: e.p.nombre, legajo: e.p.legajo, concepto, fecha: d.fecha, proyecto: proyBase || 'A DEFINIR', tarea: 'Sin planificación ese día', importe: partes[i], origen: 'proyecto indicado' }); }
+        });
+      };
       for (const e of D.sabList) {
-        const dias = e.sabado > 0.005 ? [...(sabPorLegajo.get(String(e.p.legajo)) || sabPorLegajo.get(String(e.p.legajoInforme)) || new Map()).values()] : [];
-        let rest = e.imp;
-        if (dias.length) {
-          const partes = repartir(e.sabado, dias.map(() => 1));
-          dias.forEach((d, i) => { sumaProy(d.proyecto, partes[i], d.tarea); sabados.push({ persona: e.p.nombre, legajo: e.p.legajo, fecha: d.fecha, proyecto: d.proyecto, tarea: d.tarea, importe: partes[i] }); });
-          rest = to2(e.imp - e.sabado);
-        } else if (e.sabado > 0.005 && (o.datos || []).length) avisos.push(e.p.nombre + ': sin sábado planificado con proyecto en el informe de planificación; su sábado va al proyecto indicado.');
-        if (Math.abs(rest) > 0.005) { resto = to2(resto + rest); sabados.push({ persona: e.p.nombre, legajo: e.p.legajo, fecha: '', proyecto: proyBase || 'A DEFINIR', tarea: 'Horas extra / feriados / sábado sin planificar', importe: rest }); }
+        let sab = e.sabado, he = e.he;
+        const redondeo = to2(e.imp - sab - he);
+        if (Math.abs(sab) >= Math.abs(he)) sab = to2(sab + redondeo); else he = to2(he + redondeo);    // el redondeo acompaña a la parte mayor
+        const nov = buscar(novPor, e.p);
+        if (Math.abs(sab) > 0.005) {
+          const dNov = nov && nov.SABADO.length ? [...new Map(nov.SABADO.map(x => [x.fecha, x])).values()].map(x => ({ fecha: x.fecha, peso: 1 })) : [];
+          if (dNov.length) porDias(e, 'Sábado Taller', sab, dNov, 'novedad SABADO + planificación');
+          else {
+            const dPlan = [...(buscar(sabPorLegajo, e.p) || new Map()).values()].map(x => ({ fecha: x.fecha, peso: 1 }));
+            if (hayNov) avisos.push(e.p.nombre + ': tiene «Sábado Taller» pero ninguna novedad SABADO en el archivo de novedades.');
+            if (dPlan.length) porDias(e, 'Sábado Taller', sab, dPlan, 'sábados planificados (sin novedad)');
+            else { if ((o.datos || []).length) avisos.push(e.p.nombre + ': sin sábado planificado con proyecto en el informe de planificación; su sábado va al proyecto indicado.'); aBase(e, 'Sábado Taller', sab, 'Sin sábado planificado con proyecto'); }
+          }
+        }
+        if (Math.abs(he) > 0.005) {
+          const dHe = nov && nov.HRSEX1.length ? [...new Map(nov.HRSEX1.map(x => [x.fecha, x])).values()].map(x => ({ fecha: x.fecha, peso: Math.max(Number(x.cant) || 0, 0.0001) })) : [];
+          if (dHe.length) porDias(e, 'Horas extra / feriado', he, dHe, 'novedad HRSEX1 + planificación');
+          else { if (hayNov) avisos.push(e.p.nombre + ': tiene horas extra o feriado pagados pero ninguna novedad HRSEX1 en el archivo de novedades.'); aBase(e, 'Horas extra / feriado', he, 'Sin novedad HRSEX1: horas extra / feriado'); }
+        }
       }
       if (Math.abs(resto) > 0.005) {
         sumaProy(proyBase || 'PROYECTO A DEFINIR', resto);
-        if (!proyBase) avisos.push('Sábados, horas extra y feriados: falta indicar el proyecto al que se computa lo que no está en el informe de planificación.');
-        if (!motivo) avisos.push('Sábados, horas extra y feriados: falta el motivo por el que se trabajaron (lo que no está en el informe de planificación).');
+        if (!proyBase) avisos.push('Sábados, horas extra y feriados: falta indicar el proyecto al que se computa lo que no se pudo ubicar por día.');
+        if (!motivo) avisos.push('Sábados, horas extra y feriados: falta el motivo por el que se trabajaron (lo que no se pudo ubicar por día).');
       }
       const items = [...porProy.entries()].map(([proy, imp]) => ({ cod: auxDe.has(proy) ? auxDe.get(proy).cod : proy.split(' ')[0], desc: proy, imp }));
       const total = to2(items.reduce((x, i) => x + i.imp, 0)), unico = items.length === 1 ? items[0].desc : '';
       const obs = [motivo].concat(items.map(it => it.desc + ': ' + [...(tareas.get(it.desc) || [])].join('; '))).filter(x => x && !/: $/.test(x)).join(' | ');
       const a = nuevo('SABADOS, HS EXTRA Y FERIADOS ' + (unico || 'VARIOS PROYECTOS') + ' ' + mesTxt, { observaciones: obs });
-      const n = gasto(a, CUENTA.sueldos, total, (motivo || 'Sábados trabajados según planificación') + ' - ' + (unico || 'varios proyectos') + ' ' + mesTxt);
+      const n = gasto(a, CUENTA.sueldos, total, (motivo || 'Sábados y horas extra trabajados según planificación') + ' - ' + (unico || 'varios proyectos') + ' ' + mesTxt);
       aux(a, n, 'EERR', [{ cod: E.cmv.cod, desc: E.cmv.desc, imp: total }]);
       aux(a, n, 'INSTR', items);
       aux(a, n, 'SUELDOS', [{ cod: '10', desc: 'NO APLICA', imp: total }]);
@@ -350,7 +396,7 @@
     }
     const personas = [...pers.values()].map(p => ({ clave: p.clave, nombre: p.nombre, legajo: p.legajo, depto: p.depto, sector: p.sector, ind: p.ind, prestamo: p.prestamo,
       tienePrestamo: p.lineas.some(l => l.nro === 55041), total: to2(p.lineas.reduce((s, l) => s + l.importe, 0)) }));
-    const proyectosPlan = [...new Set([...sabPorLegajo.values()].flatMap(m => [...m.values()].map(r => r.proyecto)))].sort();
+    const proyectosPlan = [...new Set([...proyUsados, ...[...sabPorLegajo.values()].flatMap(m => [...m.values()].map(r => r.proyecto))])].sort();
     return { asientos, sinDestino, sabados, proyectosPlan, avisos: [...new Set(avisos)], control, personas };
   }
 
@@ -368,11 +414,11 @@
       if (a.moneda === 'DOL') C.push([id, 'DOL', 'COTIZACIÓN', a.cotizacion, 'No']);
       a.auxiliares.forEach(x => X.push([a.concepto, x.renglon, x.cuenta, x.tipo, x.cod, x.desc, x.pct, x.importe, x.importeUSD == null ? '' : x.importeUSD]));
     });
-    const Z = [['Persona', 'Legajo', 'Fecha', 'Proyecto', 'Tarea', 'Importe']].concat((res.sabados || []).map(x => [x.persona, x.legajo, x.fecha, x.proyecto, x.tarea, x.importe]));
+    const Z = [['Persona', 'Legajo', 'Concepto', 'Fecha', 'Proyecto', 'Tarea', 'Importe', 'Origen']].concat((res.sabados || []).map(x => [x.persona, x.legajo, x.concepto, x.fecha, x.proyecto, x.tarea, x.importe, x.origen]));
     const S = [['Persona', 'Concepto', 'Nro.', 'Importe', 'Motivo']].concat(res.sinDestino.map(x => [x.persona, x.concepto, x.nro, x.importe, x.motivo]));
     const K = [['Control', 'Importe'], ['Total del informe', res.control.totalInforme], ['Gasto asentado', res.control.gastoNeto], ['Préstamos (adelantos descontados)', res.control.prestamos],
       ['Sin destino', res.control.sinDestino], ['Diferencia (debe ser 0)', res.control.diferencia]].concat(res.avisos.map(t => ['Aviso: ' + t, '']));
-    return { 'Asientos contables': A, 'Renglones': R, 'Cotizaciones': C, 'Auxiliares a cargar': X, 'Sábados por proyecto': Z, 'Sin destino': S, 'Control': K };
+    return { 'Asientos contables': A, 'Renglones': R, 'Cotizaciones': C, 'Auxiliares a cargar': X, 'Sábados y extras por día': Z, 'Sin destino': S, 'Control': K };
   }
 
   /** Planilla COPAR (hoja «COPAR»): importe por proyecto de las columnas de mes elegidas. Agrupa por código (primer término del nombre). */
@@ -394,5 +440,5 @@
     return { meses: cols.map(c => c.ym), proyectos: [...por.values()] };
   }
 
-  return { generar, hojas, leerDatos, auxProyecto, leerLegajos, leerResumen, periodos, leerCopar, porcentajes, repartir, clave, sectorDeDepto, SECTORES, CUENTA };
+  return { generar, hojas, leerDatos, leerNovedades, auxProyecto, leerLegajos, leerResumen, periodos, leerCopar, porcentajes, repartir, clave, sectorDeDepto, SECTORES, CUENTA };
 });
