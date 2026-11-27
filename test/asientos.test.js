@@ -284,3 +284,9 @@ test('coparticipación de operarios: los nombres de COPAR pasan por la tabla de 
   assert.deepEqual(a.auxiliares.filter(x => x.tipoCod === '03').map(x => [x.cod, x.desc, x.importe, x.pct]), [['IF9001', 'IF9001 NOMBRE EN TANGO', 750, 75], ['PL0002', 'PL0002 PROYECTO DOS', 250, 25]]);
   assert.deepEqual(res.proyectosPlan.sort(), ['IF9001 NOMBRE EN COPAR', 'PL0002 PROYECTO DOS']);
 });
+
+test('la fecha del asiento sale el día elegido en cualquier zona horaria (no un día antes)', () => {
+  const res = A.generar({ filas: [fila('Alfa', 'Ana', 55303, 'Socios', 1000)], legajos: LEG, config: {}, periodo: '202610', fecha: '2026-10-31' });
+  const h = A.hojas(res, { fecha: '2026-10-31' });
+  for (const d of [h['Asientos contables'][1][1], h['Renglones'][1][5]]) assert.deepEqual([d.getFullYear(), d.getMonth() + 1, d.getDate()], [2026, 10, 31]);
+});

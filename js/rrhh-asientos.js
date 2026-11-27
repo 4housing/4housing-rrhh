@@ -410,7 +410,7 @@
 
   /** Hojas para el Excel de salida (columnas como las del Excel de Tango). Identificador PROVISORIO: lo asigna Tango al importar/cargar. */
   function hojas(res, o) {
-    const [y, m, d] = String(o.fecha).split('-').map(Number), fecha = new Date(Date.UTC(y, m - 1, d));
+    const [y, m, d] = String(o.fecha).split('-').map(Number), fecha = new Date(y, m - 1, d);      // medianoche LOCAL: con UTC el Excel salía un día antes en Argentina
     const A = [['Identificador', 'Fecha de asiento', 'Clase de asiento', 'Código de tipo de asiento', 'Estado', 'Código de moneda', 'Concepto', 'Observaciones', 'Eliminar']];
     const R = [['Identificador', 'Nro.', 'Código de cuenta', 'Debe', 'Haber', 'Fecha de origen', 'Leyenda', 'Eliminar']];
     const C = [['Identificador', 'Código de moneda', 'Código de tipo de cotización', 'Cotización', 'Eliminar']];
