@@ -192,3 +192,19 @@ completo NO se versiona porque contiene valores de control de octubre.
     liquidada con otra categoría, un descuento de Hogar que figura solo en Tango y un Monotributo que figura solo en el resumen. Falta definir cuál es la versión vigente. Posible mejora: leer directamente la solapa «Totales»
     (trae el concepto por nombre, no por número).
 
+
+## Fichadas y partes diarios (2026-11) — etapa 1
+- **Circuito:** Tango Fichadas exporta el `.txt` (aplicación de consola) → la app lo lee, calcula el parte de cada persona y día, RRHH corrige y aprueba extras → la app genera el `.txt` **depurado** que RRHH importa en Delta (Control de personal → Lectura de fichadas)
+  de la empresa **4COMMERCE SRL**. El servicio automático de Tango Fichadas hacia Delta tiene que estar apagado para que no llegue nada sin depurar.
+- **Piezas:** `js/rrhh-fichadas.js` (lectura/armado del `.txt` y cálculo del parte, lógica pura, `test/fichadas.test.js`), `js/rrhh-vista-fichadas.js` (solapa **Fichadas**), `sql/rrhh_06_fichadas.sql` (tablas `rrhh_fichadas`, `rrhh_partes_dia`,
+  `rrhh_legajo_fichadas`, `rrhh_horarios`, `rrhh_feriados`, con RLS por la sección «liquidación»). **Orden de deploy: primero el SQL, después el HTML/JS.**
+- **Datos que NO van al repo:** los horarios, el horario de cada legajo y los feriados se cargan con un SQL aparte (semilla) que se entrega por fuera. El `.txt` y las fichadas no llevan C.U.I.L., teléfono ni correo.
+- **Correcciones:** las fichadas de Tango no se tocan; RRHH agrega una (origen «manual», con motivo y usuario) o anula una (queda el rastro). La app propone completar la entrada/salida que falta con el borde del horario y perdonar llegadas tarde
+  (es lo que hace RRHH hoy). El archivo depurado sale ordenado por fecha y hora, de 42 caracteres por línea y sin salto final, como el de Tango.
+- **Cálculo (verificado contra el «Informe resumen de partes» de Delta, 1ª quincena de noviembre 2026, solo local):** coincide en las **143 jornadas** hábiles y de sábado con 2 o más fichadas (horas normales, extra 50 % y extra 100 %), y detecta los **mismos 30 ausentes**.
+  Reglas: llegar antes no es extra; extras redondeadas a 30 minutos (la mitad hacia arriba) o minutos exactos para los legajos con unidad 1; sábado al 50 % hasta las 13:00 y al 100 % después; descanso de 1 h desde las 12:00. Ver la cabecera del archivo.
+- **Hipótesis con pocos casos:** el día parcial se paga en bloques de 30 minutos (3 casos). **Feriados:** se calculan con el horario de feriados pero quedan siempre marcados para revisar: en noviembre Delta liquidó el 9 y el 11 como días comunes en los partes, y la
+  liquidación pagó 8 h de feriado por día. Falta definir con administración cómo se pagan las horas trabajadas en feriado.
+- **Lo que hace RRHH después y todavía no está en la app (etapa 2):** el Excel de **novedades** (formato `Fecha, Número de legajo, Código de novedad, Cantidad, Valor, Observaciones`, sin C.U.I.L.) para lo que no sale de las fichadas (justificaciones, licencias, adelantos)
+  y las horas extra aprobadas; y las **vacaciones**: que cada persona vea sus días, los pida, y la app genere las novedades (`VACJOR`, `VACM`). Pendiente definir quién entra a la app, cómo se aprueban y cómo se calculan los días que corresponden.
+- **Pendiente de datos:** qué ajusta RRHH a mano en los partes (el sistema puede tomar como extra una entrada a las 06:00 que RRHH corrige); la 2ª quincena de noviembre para una prueba ciega; reglas de Neuquén y jornada parcial con más casos.
