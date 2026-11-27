@@ -25,7 +25,7 @@
     titulo('Asientos', 'Asientos contables de los adicionales pagados en efectivo, para cargar en Tango');
     if (!PERM.ver.has('liquidacion')) { $main.innerHTML = '<div class="empty">Para generar asientos hace falta permiso de <b>Ver</b> en «Liquidación». Pedíselo a dirección en el portal.</div>'; return; }
 
-    const est = { resumen: null, hojasRes: [], hojaRes: '', legajos: null, copar: null, cfg: leerCfg('personas'), proy: leerCfg('proyectos'), datos: [], res: null, personas: [], vista: 'asientos', grid: null, columnas: [] };
+    const est = { resumen: null, hojasRes: [], hojaRes: '', legajos: null, copar: null, cfg: leerCfg('personas'), proy: leerCfg('proyectos'), datos: [], novedades: [], res: null, personas: [], vista: 'asientos', grid: null, columnas: [] };
     $main.innerHTML = `
       <div class="card" id="as-carga">
         <div class="card-h"><h3>1 · Archivos</h3></div>
@@ -36,6 +36,7 @@
             <label>Legajos (solapa LEGAJOS, .xlsx)<input type="file" id="as-f-leg" accept=".xlsx,.xls"></label>
             <label>Planilla COPAR (opcional, .xlsx)<input type="file" id="as-f-cop" accept=".xlsx,.xls"></label>
             <label>Informe de planificación del mes (formato DATOS, .csv)<input type="file" id="as-f-dat" accept=".csv,.txt"></label>
+            <label>Novedades registradas del mes (.xlsx)<input type="file" id="as-f-nov" accept=".xlsx,.xls"></label>
           </div>
           <div class="est" id="as-est-arch"></div>
         </div>
@@ -60,12 +61,12 @@
       </div>
       <div id="as-personas-box" hidden>
         <div class="card" style="max-width:none"><div class="card-h"><h3>3 · Personas</h3></div>
-          <div class="card-b"><p class="nota" style="margin-top:0">Quién va en un <b>asiento individual</b> (el resto va al asiento de coparticipación), el <b>sector</b> para el auxiliar de Sueldos (por defecto sale del departamento del padrón) y el <b>auxiliar de préstamos</b> de quien tenga adelanto. Se recuerda en este navegador.</p>
+          <div class="card-b"><p class="nota" style="margin-top:0">Quién va en un <b>asiento individual</b> (el resto va al asiento de coparticipación), el <b>sector</b> para el auxiliar de Sueldos (por defecto sale del departamento del padrón), si la persona está <b>fuera de la planificación de producción</b> (administrativos, Neuquén: sus días van al proyecto indicado sin aviso; «Automático» = no figura en el informe de planificación) y el <b>auxiliar de préstamos</b> de quien tenga adelanto. Se recuerda en este navegador.</p>
           <div id="as-personas"></div></div></div>
       </div>
       <div id="as-proy-box" hidden>
         <div class="card" style="max-width:none"><div class="card-h"><h3>Proyectos de la planificación → auxiliar de Tango</h3></div>
-          <div class="card-b"><p class="nota" style="margin-top:0">La planificación llama «4417 VICUÑA» al proyecto que en Tango es «IF4417 VICUÑA». Si no lo configurás, se <b>supone</b> el prefijo <b>IF</b> para los códigos numéricos. Confirmá o corregí el código y la descripción del auxiliar. Se recuerda en este navegador.</p>
+          <div class="card-b"><p class="nota" style="margin-top:0">La planificación llama «4417 VICUÑA» al proyecto que en Tango es «IF4417 VICUÑA»: <b>IF</b> es el <b>Instructivo de Fabricación</b>, la clasificación que usan todas las apps, y la planificación la resume con el número. Para los códigos numéricos se agrega el prefijo IF solo; si algún proyecto lleva otro código, corregilo acá. Se recuerda en este navegador.</p>
           <div id="as-proy"></div></div></div>
       </div>
       <div id="as-res-box" hidden>
@@ -146,6 +147,16 @@
         estado('Informe de planificación leído: ' + est.datos.length + ' filas, ' + est.datos.filter(r => r.dia === 'sabado').length + ' de sábado.', 'ok');
       } catch (e) { est.datos = []; estado('No pude leer el informe de planificación: ' + esc(e.message), 'mal'); }
     });
+    $('as-f-nov').addEventListener('change', async ev => {
+      const f = ev.target.files[0]; if (!f) return;
+      try {
+        const wb = await leerLibro(f), h = wb.SheetNames.find(x => cabecera(wb, x).some(c => /^c[oó]d\. novedad$/i.test(c)));
+        if (!h) throw new Error('no encontré una solapa con la columna «Cód. novedad»');
+        est.novedades = Asientos.leerNovedades(filasDe(wb, h));
+        const n = c => est.novedades.filter(x => x.cod === c).length;
+        estado('Novedades leídas: ' + n('SABADO') + ' días SABADO y ' + n('HRSEX1') + ' de horas extra (HRSEX1). Los demás códigos se ignoran.', 'ok');
+      } catch (e) { est.novedades = []; estado('No pude leer las novedades: ' + esc(e.message), 'mal'); }
+    });
     $('as-hoja').addEventListener('change', ev => { est.hojaRes = ev.target.value; cargarPeriodos(); });
     $('as-periodo').addEventListener('change', alCambiarPeriodo);
 
@@ -155,14 +166,14 @@
       const meses = [...document.querySelectorAll('.as-mes:checked')].map(x => Number(x.value));
       const copar = est.copar && meses.length ? Asientos.leerCopar(est.copar, meses).proyectos : [];
       return { filas, legajos: est.legajos, config: { personas: est.cfg, proyectos: est.proy }, periodo: String(periodo), fecha: $('as-fecha').value,
-        cotizacion: Number($('as-cot').value) || null, bono: { proyecto: $('as-bono').value }, sabados: { proyecto: $('as-sab-proy').value, motivo: $('as-sab-motivo').value }, datos: est.datos, copar };
+        cotizacion: Number($('as-cot').value) || null, bono: { proyecto: $('as-bono').value }, sabados: { proyecto: $('as-sab-proy').value, motivo: $('as-sab-motivo').value }, datos: est.datos, novedades: est.novedades, copar };
     }
     function calcular() { est.res = Asientos.generar(entrada()); }
 
     /* ---------- tabla de personas ---------- */
     function pintarPersonas() {
       const opSec = sel => '<option value="">(según padrón)</option>' + Object.entries(Asientos.SECTORES).map(([c, n]) => '<option value="' + c + '"' + (sel === c ? ' selected' : '') + '>' + c + ' · ' + esc(n) + '</option>').join('');
-      est.personas = est.res.personas.map(p => { const c = est.cfg[p.clave] || {}; return { ...p, asiento: c.asiento === 'ind' ? 'ind' : 'pool', sectorCfg: c.sector || '', prestamoCfg: c.prestamo || '' }; });
+      est.personas = est.res.personas.map(p => { const c = est.cfg[p.clave] || {}; return { ...p, asiento: c.asiento === 'ind' ? 'ind' : 'pool', sectorCfg: c.sector || '', prestamoCfg: c.prestamo || '', fueraSel: c.fueraPlan === true ? 'si' : c.fueraPlan === false ? 'no' : '' }; });
       const cols = [
         { k: 'legajo', titulo: 'Legajo', tipo: 'n', cls: 'izq', min: 70, texto: f => String(f.legajo == null ? '' : f.legajo) },
         { k: 'nombre', titulo: 'Persona', cls: 'izq', sticky: true, min: 200 },
@@ -172,11 +183,14 @@
           html: f => '<select data-c="' + esc(f.clave) + '" data-k="asiento"><option value="pool"' + (f.asiento === 'pool' ? ' selected' : '') + '>Con el resto</option><option value="ind"' + (f.asiento === 'ind' ? ' selected' : '') + '>Individual</option></select>' },
         { k: 'sectorCfg', titulo: 'Sector (auxiliar Sueldos)', cls: 'izq', min: 170, texto: f => (f.sectorCfg ? Asientos.SECTORES[f.sectorCfg] : (f.sector ? Asientos.SECTORES[f.sector] + ' (padrón)' : '— sin sector —')),
           html: f => '<select data-c="' + esc(f.clave) + '" data-k="sector">' + opSec(f.sectorCfg) + '</select>' },
+        { k: 'fueraSel', titulo: 'Fuera de la planificación de producción', cls: 'izq', min: 190,
+          texto: f => (f.fueraSel === 'si' ? 'Sí' : f.fueraSel === 'no' ? 'No' : (f.fueraAuto ? 'Sí (automático)' : 'No (automático)')),
+          html: f => '<select data-c="' + esc(f.clave) + '" data-k="fuera"><option value=""' + (f.fueraSel === '' ? ' selected' : '') + '>Automático</option><option value="si"' + (f.fueraSel === 'si' ? ' selected' : '') + '>Sí</option><option value="no"' + (f.fueraSel === 'no' ? ' selected' : '') + '>No</option></select>' },
         { k: 'prestamoCfg', titulo: 'Auxiliar préstamos', cls: 'izq', texto: f => (f.tienePrestamo ? (f.prestamoCfg || '— falta —') : ''),
           html: f => (f.tienePrestamo ? '<input type="text" size="8" data-c="' + esc(f.clave) + '" data-k="prestamo" value="' + esc(f.prestamoCfg) + '" placeholder="código">' : '') },
       ];
       est.gridPers = Tabla.crear({ el: $('as-personas'), id: 'asientos-personas', columnas: cols, esc,
-        pie: rows => ['', 'TOTAL · ' + rows.length + ' personas', '', num(rows.reduce((s, f) => s + f.total, 0)), '', '', ''] });
+        pie: rows => ['', 'TOTAL · ' + rows.length + ' personas', '', num(rows.reduce((s, f) => s + f.total, 0)), '', '', '', ''] });
       est.gridPers.render(est.personas);
       $('as-personas-box').hidden = false;
     }
@@ -186,6 +200,7 @@
       const cur = est.cfg[c] || (est.cfg[c] = {});
       if (k === 'asiento') { cur.asiento = el.value; f.asiento = el.value; }
       if (k === 'sector') { cur.sector = el.value || undefined; f.sectorCfg = el.value; }
+      if (k === 'fuera') { cur.fueraPlan = el.value === 'si' ? true : el.value === 'no' ? false : undefined; f.fueraSel = el.value; }
       if (k === 'prestamo') { cur.prestamo = el.value.trim() || undefined; f.prestamoCfg = el.value.trim(); }
       guardarCfg(est.cfg, est.proy); calcular(); pintarResultados();
     });
@@ -197,7 +212,7 @@
       const cols = [{ k: 'plan', titulo: 'Proyecto en la planificación', cls: 'izq', min: 220 },
         { k: 'cod', titulo: 'Auxiliar de Tango (código)', cls: 'izq', html: f => '<input type="text" size="10" data-p="' + esc(f.plan) + '" data-k="cod" value="' + esc(f.cod) + '">' },
         { k: 'desc', titulo: 'Descripción del auxiliar', cls: 'izq', min: 220, html: f => '<input type="text" size="28" data-p="' + esc(f.plan) + '" data-k="desc" value="' + esc(f.desc) + '">' },
-        { k: 'supuesto', titulo: 'Estado', cls: 'izq', texto: f => (f.supuesto ? 'Supuesto (prefijo IF)' : 'Confirmado') }];
+        { k: 'estado', titulo: 'Estado', cls: 'izq', texto: f => (est.proy[f.plan] && est.proy[f.plan].cod ? 'Configurado a mano' : 'Automático (IF = Instructivo de Fabricación)') }];
       Tabla.crear({ el: $('as-proy'), id: 'asientos-proyectos', columnas: cols, esc }).render(est.proyFilas);
     }
     $('as-proy').addEventListener('change', ev => {
@@ -217,7 +232,7 @@
       $('as-avisos').innerHTML = '<div class="est ' + (c.diferencia === 0 && !r.avisos.length ? 'ok' : 'av') + '" style="margin-bottom:10px">Total del informe ' + num(c.totalInforme) + ' = gasto asentado ' + num(c.gastoNeto)
         + ' + préstamos ' + num(c.prestamos) + ' + sin destino ' + num(c.sinDestino) + ' · diferencia ' + num(c.diferencia) + (c.diferencia === 0 ? ' ✓' : ' ⚠')
         + (r.avisos.length ? '<ul style="margin:6px 0 0 18px;padding:0">' + r.avisos.map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>' : '') + '</div>';
-      const tabs = [['asientos', 'Asientos contables'], ['renglones', 'Renglones'], ['aux', 'Auxiliares a cargar'], ['sab', 'Sábados por proyecto (' + r.sabados.length + ')'], ['sin', 'Sin destino (' + r.sinDestino.length + ')']];
+      const tabs = [['asientos', 'Asientos contables'], ['renglones', 'Renglones'], ['aux', 'Auxiliares a cargar'], ['sab', 'Sábados y extras por día (' + r.sabados.length + ')'], ['sin', 'Sin destino (' + r.sinDestino.length + ')']];
       $('as-tabs').innerHTML = tabs.map(([k, t]) => '<button type="button" class="btn' + (est.vista === k ? '' : ' sec') + '" data-v="' + k + '">' + esc(t) + '</button>').join('')
         + '<span class="sp"></span><button type="button" class="btn sec" id="as-export">Exportar a Excel (todas las solapas)</button>';
       const arm = (id, columnas, filas, pie) => { est.columnas = columnas; est.grid = Tabla.crear({ el: $('as-tabla'), id, columnas, esc, pie }); est.grid.render(filas); };
@@ -237,10 +252,10 @@
           flat(a => a.auxiliares.map(x => ({ asiento: a.concepto, ...x }))), rows => ['TOTAL · ' + rows.length + ' líneas', '', '', '', '', '', '', '', '']);
         $('as-nota').textContent = 'Para cargar a mano en Tango (botón Auxiliares de cada renglón de gasto): por renglón, tipo de auxiliar, auxiliar, porcentaje e importe. El porcentaje tiene 2 decimales y cada reparto suma 100.';
       } else if (est.vista === 'sab') {
-        arm('asientos-sab', [colTxt('persona', 'Persona', { sticky: true, min: 200 }), colNum('legajo', 'Legajo', { cls: 'izq', texto: f => String(f.legajo == null ? '' : f.legajo) }), colTxt('fecha', 'Fecha', { texto: f => f.fecha || '— sin sábado planificado —', valor: f => f.fecha || '' }),
-          colTxt('proyecto', 'Proyecto', { min: 200 }), colTxt('tarea', 'Tarea / motivo', { min: 240 }), colNum('importe', 'Importe')],
-          r.sabados, rows => ['TOTAL · ' + rows.length + ' líneas', '', '', '', '', num(rows.reduce((s, f) => s + f.importe, 0))]);
-        $('as-nota').textContent = 'Justificación de los sábados con el informe de planificación: cada sábado trabajado trae su proyecto y su tarea, y el importe de «Sábado Taller» de la persona se reparte en partes iguales entre sus sábados. Sin sábado planificado, o para horas extra y feriados, se usa el proyecto y el motivo indicados arriba.';
+        arm('asientos-sab', [colTxt('persona', 'Persona', { sticky: true, min: 200 }), colNum('legajo', 'Legajo', { cls: 'izq', texto: f => String(f.legajo == null ? '' : f.legajo) }), colTxt('concepto', 'Concepto'),
+          colTxt('fecha', 'Fecha', { texto: f => f.fecha || '— sin día —', valor: f => f.fecha || '' }), colTxt('proyecto', 'Proyecto', { min: 200 }), colTxt('tarea', 'Tarea / motivo', { min: 240 }), colNum('importe', 'Importe'), colTxt('origen', 'Origen', { min: 200 })],
+          r.sabados, rows => ['TOTAL · ' + rows.length + ' líneas', '', '', '', '', '', num(rows.reduce((s, f) => s + f.importe, 0)), '']);
+        $('as-nota').textContent = 'Reparto por día: los días pagados salen de las novedades (SABADO: partes iguales por día; HRSEX1: proporcional a las horas) y el proyecto y la tarea de cada día, del informe de planificación. Lo que no se puede ubicar por día va al proyecto y motivo indicados arriba.';
       } else {
         arm('asientos-sin', [colTxt('persona', 'Persona', { sticky: true, min: 200 }), colTxt('concepto', 'Concepto'), colNum('nro', 'Nro.', { texto: f => String(f.nro) }), colNum('importe', 'Importe'), colTxt('motivo', 'Motivo', { min: 240 })],
           r.sinDestino, rows => ['TOTAL', '', '', num(rows.reduce((s, f) => s + f.importe, 0)), '']);

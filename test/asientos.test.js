@@ -138,7 +138,7 @@ test('persona fuera de LEGAJOS: avisa y no inventa el sector; con sector a mano 
 test('hojas de salida y planilla COPAR', () => {
   const res = A.generar({ filas: [fila('Alfa', 'Ana', 55303, 'Socios', 1000)], legajos: LEG, config: {}, periodo: '202610', fecha: '2026-10-31' });
   const h = A.hojas(res, { fecha: '2026-10-31' });
-  assert.deepEqual(Object.keys(h), ['Asientos contables', 'Renglones', 'Cotizaciones', 'Auxiliares a cargar', 'Sábados por proyecto', 'Sin destino', 'Control']);
+  assert.deepEqual(Object.keys(h), ['Asientos contables', 'Renglones', 'Cotizaciones', 'Auxiliares a cargar', 'Sábados y extras por día', 'Sin destino', 'Control']);
   assert.equal(h['Renglones'].length, 3);
   const aoa = [['PROYECTO', 'CONCEPTO', 'F. INICIO', 'TOTAL', new Date(2026, 8, 30), new Date(2026, 9, 31)],
     ['PL0001 ALFA', 'Contrato', null, 10, 40, 100], ['PL0001 ALFA - DESC.', 'Rev', null, 0, null, -10], ['IF0002 BETA', 'x', null, 5, null, 50], ['-', '-', null, 0, null, null]];
@@ -199,10 +199,10 @@ test('Sábado Taller se justifica con el informe de planificación: partes igual
   const a = asi(res, 'SABADOS, HS EXTRA Y FERIADOS VARIOS PROYECTOS');
   assert.equal(suma(a, '56000001', 'debe'), 1700);
   const inst = a.auxiliares.filter(x => x.tipoCod === '03').map(x => [x.cod, x.desc, x.importe]);
-  assert.deepEqual(inst, [['IF9001', 'IF9001 PROYECTO UNO', 500], ['PL0002', 'PL0002 PROYECTO DOS', 500], ['IF0007', 'IF0007 BASE', 700]]);   // 9001 → IF9001 (supuesto)
+  assert.deepEqual(inst, [['IF9001', 'IF9001 PROYECTO UNO', 500], ['PL0002', 'PL0002 PROYECTO DOS', 500], ['IF0007', 'IF0007 BASE', 700]]);   // 9001 → IF9001
   assert.equal(Math.round(a.auxiliares.filter(x => x.tipoCod === '03').reduce((s, x) => s + x.pct, 0) * 100), 10000);
   assert.deepEqual(res.sabados.slice(0, 2).map(x => [x.fecha, x.proyecto, x.importe]), [['2026-10-03', '9001 PROYECTO UNO', 500], ['2026-10-10', 'PL0002 PROYECTO DOS', 500]]);
-  assert.ok(res.avisos.some(t => t.includes('9001 PROYECTO UNO') && t.includes('IF9001 PROYECTO UNO')));
+  assert.ok(!res.avisos.some(t => t.includes('se supone')));                       // IF = Instructivo de Fabricación: confirmado, sin aviso
   assert.ok(res.avisos.some(t => t.includes('Edu') || t.includes('Eta')));            // sin sábado planificado con proyecto
   assert.ok(res.avisos.some(t => t.includes('SIN «Sábado Taller»') && t.includes('4 (1)') && !t.includes('5 (1)')));   // Dani sí; Eli (solo Mantenimiento) y Edu (ausente) no cuentan
   assert.equal(res.control.diferencia, 0);
@@ -216,4 +216,71 @@ test('equivalencia de proyecto configurada: manda sobre el prefijo supuesto', ()
   const a = asi(res, 'SABADOS');
   assert.deepEqual(a.auxiliares.filter(x => x.tipoCod === '03').map(x => [x.cod, x.desc]), [['XX9001', 'XX9001 UNO'], ['PL0002', 'PL0002 DOS']]);
   assert.ok(!res.avisos.some(t => t.includes('se supone el prefijo')));
+});
+
+test('leerNovedades: solo fecha, legajo, código y cantidad (nunca C.U.I.L. ni nombre)', () => {
+  const r = A.leerNovedades([{ Fecha: new Date(2026, 9, 24), 'C.U.I.L.': 'NO-VA', Legajo: 3, 'Apellido y nombre': 'No Va', 'Cód. novedad': 'hrsex1', Cantidad: 1.5 }, { Fecha: 'x', Legajo: 3, 'Cód. novedad': 'SABADO' }]);
+  assert.deepEqual(r, [{ fecha: '2026-10-24', legajo: '3', cod: 'HRSEX1', cantidad: 1.5 }]);
+});
+
+test('días pagados por novedades: SABADO en partes iguales por día, HRSEX1 proporcional a las horas; el proyecto de cada día sale de la planificación', () => {
+  const CSV2 = '\uFEFF"Legajo";"Empleado";"Periodo";"Fecha";"Dia";"Ubicación";"Proyecto";"Lote";"Posventa/Montaje";"Modulo";"TAREAS";"Desc Tarea"\r\n'
+    + '"3";"G";"202610";"2026-10-24";"sábado";"H";"9001 PROYECTO UNO";"";"P";"";"Herrería";"d"\r\n'
+    + '"3";"G";"202610";"2026-10-31";"sábado";"H";"PL0002 PROYECTO DOS";"";"P";"";"Ensamble";"d"\r\n'
+    + '"3";"G";"202610";"2026-10-14";"miércoles";"H";"9001 PROYECTO UNO";"";"P";"";"Herrería";"d"\r\n';
+  const filas = [fila('Gama', 'Gabi', 55013, 'Sábado Taller', 1000), fila('Gama', 'Gabi', 55014, 'Hs extra', 300), fila('Gama', 'Gabi', 99999, 'Redondeo', 0.5)];
+  filas.forEach(f => { f.legajo = 3; });
+  filas[0].importe = 999.5;
+  const nov = A.leerNovedades([
+    { Fecha: new Date(2026, 9, 24), Legajo: 3, 'Cód. novedad': 'SABADO', Cantidad: 1 }, { Fecha: new Date(2026, 9, 31), Legajo: 3, 'Cód. novedad': 'SABADO', Cantidad: 1 },
+    { Fecha: new Date(2026, 9, 14), Legajo: 3, 'Cód. novedad': 'HRSEX1', Cantidad: 1.5 }, { Fecha: new Date(2026, 9, 24), Legajo: 3, 'Cód. novedad': 'HRSEX1', Cantidad: 4.5 }]);
+  const res = A.generar({ filas, legajos: LEG, config: {}, periodo: '202610', fecha: '2026-10-31', datos: A.leerDatos(CSV2), novedades: nov, sabados: { proyecto: 'IF0007 BASE', motivo: 'm' } });
+  const a = asi(res, 'SABADOS, HS EXTRA Y FERIADOS VARIOS PROYECTOS');
+  assert.equal(suma(a, '56000001', 'debe'), 1300);                       // 1000 (999,5 + redondeo 0,5) + 300
+  const det = res.sabados.map(x => [x.concepto, x.fecha, x.proyecto, x.importe]);
+  assert.deepEqual(det, [['Sábado Taller', '2026-10-24', '9001 PROYECTO UNO', 500], ['Sábado Taller', '2026-10-31', 'PL0002 PROYECTO DOS', 500],
+    ['Horas extra / feriado', '2026-10-14', '9001 PROYECTO UNO', 75], ['Horas extra / feriado', '2026-10-24', '9001 PROYECTO UNO', 225]]);
+  const inst = a.auxiliares.filter(x => x.tipoCod === '03').map(x => [x.cod, x.importe]);
+  assert.deepEqual(inst, [['IF9001', 800], ['PL0002', 500]]);
+  assert.equal(res.control.diferencia, 0);
+});
+
+test('con novedades: sin novedad de la persona, o día sin proyecto en la planificación → avisa y va al proyecto indicado', () => {
+  const filas = [fila('Gama', 'Gabi', 55013, 'Sábado Taller', 600), fila('Eta', 'Edu', 55013, 'Sábado Taller', 200), fila('Eta', 'Edu', 55014, 'Hs extra', 100)];
+  filas[0].legajo = 3; filas[1].legajo = 7; filas[2].legajo = 7;
+  const nov = A.leerNovedades([{ Fecha: new Date(2026, 9, 3), Legajo: 3, 'Cód. novedad': 'SABADO', Cantidad: 1 }, { Fecha: new Date(2026, 9, 10), Legajo: 7, 'Cód. novedad': 'SABADO', Cantidad: 1 }]);
+  const res = A.generar({ filas, legajos: LEG, config: {}, periodo: '202610', fecha: '2026-10-31', datos: A.leerDatos(CSV), novedades: nov, sabados: { proyecto: 'IF0007 BASE', motivo: 'm' } });
+  assert.ok(res.avisos.some(t => t.includes('2026-10-10') && t.includes('no figura con proyecto')));     // Edu: día pagado sin proyecto en la planificación
+  assert.ok(res.avisos.some(t => t.includes('HRSEX1')));                                              // Edu: horas extra pagadas sin novedad HRSEX1
+  const porProy = Object.fromEntries(res.sabados.map(x => [x.proyecto + '|' + x.concepto, x.importe]));
+  assert.equal(porProy['9001 PROYECTO UNO|Sábado Taller'], 600);
+  assert.equal(porProy['IF0007 BASE|Sábado Taller'], 200);
+  assert.equal(porProy['IF0007 BASE|Horas extra / feriado'], 100);
+  assert.equal(res.control.diferencia, 0);
+});
+
+test('personal fuera de la planificación de producción: sus días van al proyecto indicado sin aviso (se deduce o se configura)', () => {
+  const nov = A.leerNovedades([{ Fecha: new Date(2026, 9, 24), Legajo: 99, 'Cód. novedad': 'SABADO', Cantidad: 1 }, { Fecha: new Date(2026, 9, 24), Legajo: 7, 'Cód. novedad': 'SABADO', Cantidad: 1 }]);
+  const filas = [fila('Beta', 'Beto', 55013, 'Sábado Taller', 500), fila('Eta', 'Edu', 55013, 'Sábado Taller', 300)];
+  filas[1].legajo = 7;
+  const base = { filas, legajos: LEG, periodo: '202610', fecha: '2026-10-31', datos: A.leerDatos(CSV), novedades: nov, sabados: { proyecto: 'IF0007 BASE', motivo: 'm' } };
+  const auto = A.generar({ ...base, config: {} });                       // Beto (legajo 99, padrón 2) no figura en el informe → fuera de la planificación; Edu sí figura
+  assert.ok(!auto.avisos.some(t => t.includes('Beta')));
+  assert.ok(auto.avisos.some(t => t.includes('Eta') || t.includes('Edu')));
+  const d = auto.sabados.find(x => x.persona.startsWith('Beta'));
+  assert.equal(d.proyecto, 'IF0007 BASE'); assert.equal(d.tarea, 'Personal fuera de la planificación de producción');
+  assert.equal(auto.personas.find(p => p.clave === 'beta beto').fueraAuto, true);
+  const manual = A.generar({ ...base, config: { personas: { 'beta beto': { fueraPlan: false }, 'eta edu': { fueraPlan: true } } } });   // lo configurado manda
+  assert.ok(manual.avisos.some(t => t.includes('Beta')));
+  assert.ok(!manual.avisos.some(t => t.includes('Eta')));
+  assert.equal(manual.control.diferencia, 0);
+});
+
+test('coparticipación de operarios: los nombres de COPAR pasan por la tabla de equivalencias de proyectos', () => {
+  const filas = [fila('Zeta', 'Zoe', 55010, 'Copart Ope', 1000)];
+  const copar = [{ codigo: 'IF9001', nombre: 'IF9001 NOMBRE EN COPAR', importe: 300 }, { codigo: 'PL0002', nombre: 'PL0002 PROYECTO DOS', importe: 100 }];
+  const res = A.generar({ filas, legajos: LEG, config: { proyectos: { 'IF9001 NOMBRE EN COPAR': { cod: 'IF9001', desc: 'IF9001 NOMBRE EN TANGO' } } }, periodo: '202610', fecha: '2026-10-31', copar });
+  const a = asi(res, 'COMISION COPART OPERARIOS');
+  assert.deepEqual(a.auxiliares.filter(x => x.tipoCod === '03').map(x => [x.cod, x.desc, x.importe, x.pct]), [['IF9001', 'IF9001 NOMBRE EN TANGO', 750, 75], ['PL0002', 'PL0002 PROYECTO DOS', 250, 25]]);
+  assert.deepEqual(res.proyectosPlan.sort(), ['IF9001 NOMBRE EN COPAR', 'PL0002 PROYECTO DOS']);
 });
