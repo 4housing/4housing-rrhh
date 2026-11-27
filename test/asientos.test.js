@@ -26,7 +26,7 @@ test('porcentajes: 2 decimales y suman exactamente 100', () => {
 test('leerLegajos y leerResumen descartan C.U.I.L., teléfono y correo', () => {
   assert.deepEqual(Object.keys(LEG.get('alfa ana')).sort(), ['depto', 'legajo', 'nombre']);
   const r = A.leerResumen([{ Legajo: 1, Apellidos: 'Alfa', Nombre: 'Ana', 'C.U.I.L.': 'NO-VA', 'Nro. de concepto': 55000, 'Desc. de concepto': 'x', 'Importe liquidado': 10, 'Período liquidado': new Date(2026, 9, 1) }], 202610);
-  assert.deepEqual(Object.keys(r[0]).sort(), ['apellidos', 'desc', 'importe', 'legajo', 'nombre', 'nro', 'periodo']);
+  assert.deepEqual(Object.keys(r[0]).sort(), ['apellidos', 'desc', 'grupo', 'importe', 'legajo', 'nombre', 'nro', 'periodo']);
   assert.equal(A.leerResumen([{ Legajo: 1, 'Nro. de concepto': 1, 'Importe liquidado': 1, 'Período liquidado': new Date(2026, 8, 1) }], 202610).length, 0);
 });
 
@@ -120,7 +120,7 @@ test('adelanto de coparticipación: préstamo en dólares a la cotización indic
   assert.equal(a.moneda, 'DOL'); assert.equal(a.cotizacion, 1450);
   assert.equal(suma(a, '11220002', 'haber'), 551.72);                    // 800.000 / 1.450
   assert.equal(suma(a, '11110071', 'debe'), 551.72);
-  assert.equal(a.auxiliares[0].cod, '46'); assert.equal(a.auxiliares[0].importe, 800000);
+  assert.equal(a.auxiliares[0].cod, '46'); assert.equal(a.auxiliares[0].importe, 551.72); assert.equal(a.auxiliares[0].importePesos, 800000);   // el auxiliar va en dólares, como el asiento
   assert.equal(res.control.diferencia, 0);
   const sin = A.generar({ filas, legajos: LEG, config: cfg, periodo: '202608', fecha: '2026-08-31' });
   assert.equal(sin.asientos.length, 0); assert.equal(sin.sinDestino[0].motivo, 'Falta la cotización del dólar'); assert.equal(sin.control.diferencia, 0);
@@ -138,8 +138,8 @@ test('persona fuera de LEGAJOS: avisa y no inventa el sector; con sector a mano 
 test('hojas de salida y planilla COPAR', () => {
   const res = A.generar({ filas: [fila('Alfa', 'Ana', 55303, 'Socios', 1000)], legajos: LEG, config: {}, periodo: '202610', fecha: '2026-10-31' });
   const h = A.hojas(res, { fecha: '2026-10-31' });
-  assert.deepEqual(Object.keys(h), ['Asientos contables', 'Renglones', 'Cotizaciones', 'Auxiliares a cargar', 'Sábados y extras por día', 'Sin destino', 'Control']);
-  assert.equal(h['Renglones'].length, 3);
+  assert.deepEqual(Object.keys(h), ['Detalle', 'Asiento']);                       // solo dos solapas
+  assert.deepEqual(h['Asiento'].slice(1).map(r => r[1]), ['ASIENTO', 'Renglón', 'Auxiliar', 'Auxiliar', 'Auxiliar', 'Renglón']);   // título, renglón con sus 3 auxiliares debajo, contrapartida
   const aoa = [['PROYECTO', 'CONCEPTO', 'F. INICIO', 'TOTAL', new Date(2026, 8, 30), new Date(2026, 9, 31)],
     ['PL0001 ALFA', 'Contrato', null, 10, 40, 100], ['PL0001 ALFA - DESC.', 'Rev', null, 0, null, -10], ['IF0002 BETA', 'x', null, 5, null, 50], ['-', '-', null, 0, null, null]];
   assert.deepEqual(A.leerCopar(aoa, [202610]).proyectos, [{ codigo: 'PL0001', nombre: 'PL0001 ALFA', importe: 90 }, { codigo: 'IF0002', nombre: 'IF0002 BETA', importe: 50 }]);
@@ -285,8 +285,44 @@ test('coparticipación de operarios: los nombres de COPAR pasan por la tabla de 
   assert.deepEqual(res.proyectosPlan.sort(), ['IF9001 NOMBRE EN COPAR', 'PL0002 PROYECTO DOS']);
 });
 
-test('la fecha del asiento sale el día elegido en cualquier zona horaria (no un día antes)', () => {
+test('la fecha del asiento sale el día elegido en cualquier zona horaria (número de día con formato de fecha, no un Date)', () => {
   const res = A.generar({ filas: [fila('Alfa', 'Ana', 55303, 'Socios', 1000)], legajos: LEG, config: {}, periodo: '202610', fecha: '2026-10-31' });
   const h = A.hojas(res, { fecha: '2026-10-31' });
-  for (const d of [h['Asientos contables'][1][1], h['Renglones'][1][5]]) assert.deepEqual([d.getFullYear(), d.getMonth() + 1, d.getDate()], [2026, 10, 31]);
+  const iF = A.COLS_ASIENTO.findIndex(c => c[0] === 'fecha');
+  for (const celda of [h['Asiento'][1][iF], h['Asiento'][2][iF]]) {
+    assert.equal(celda.z, 'dd/mm/yyyy'); assert.equal(celda.t, 'n'); assert.equal(Number.isInteger(celda.v), true);       // día entero: sin horas que corran la fecha
+    const d = new Date(Date.UTC(1899, 11, 30) + celda.v * 86400000);
+    assert.deepEqual([d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()], [2026, 10, 31]);
+  }
+});
+
+test('Detalle: una fila por línea del informe con su destino, como la solapa Totales de Tango; suma el total del informe', () => {
+  const filas = [fila('Alfa', 'Ana', 55303, 'Adicional Socios', 1000), fila('Beta', 'Beto', 55000, 'Coparticipación Adm.', 700), fila('Beta', 'Beto', 55035, 'Descuento - Combo Hogar', -50),
+    fila('Gama', 'Gabi', 55012, 'Recat.', 120), fila('Gama', 'Gabi', 55999, 'Concepto nuevo', 30), fila('Gama', 'Gabi', 99999, 'Redondeo', 0)];
+  filas.forEach(f => { f.grupo = 'No Remunerativo'; });
+  const res = A.generar({ filas, legajos: LEG, config: {}, periodo: '202610', fecha: '2026-10-31' });
+  assert.equal(res.detalle.length, 6);
+  assert.equal(res.detalle.reduce((s, r) => s + r.importe, 0), res.control.totalInforme);
+  const dest = Object.fromEntries(res.detalle.map(r => [r.concepto, r.destino]));
+  assert.deepEqual(dest, { 'Adicional Socios': 'SUELDOS', 'Coparticipación Adm.': 'COMISION COPART ADM', 'Descuento - Combo Hogar': 'COMISION COPART ADM', 'Recat.': 'Sueldos - Dif. de categoria', 'Concepto nuevo': 'SIN DESTINO', 'Redondeo': 'Redondeo (sin otra línea)' });
+  const h = A.hojas(res, { fecha: '2026-10-31' }).Detalle;
+  assert.ok(h.some(r => r[0] === 'Total 2' && r[4] === 700 - 50) && h.some(r => r[0] === 'Total general' && r[4] === res.control.totalInforme));   // subtotal por persona como en Totales
+  assert.ok(h.some(r => r[0] === 'SUELDOS' && r[4] === 1000));                                                                                       // total por destino
+});
+
+test('préstamo con el formato del asiento modelo: concepto y leyenda con etiqueta y cuota, auxiliar «46 - 09 Callero…» en dólares', () => {
+  const lg = A.leerLegajos([{ 'Número': 9, 'Apellido y nombre': 'Delta, Dani', 'Descripción de departamento': 'GERENCIA ADMIN Y FINANZAS' }]);
+  const filas = [fila('Delta', 'Dani', 55041, 'Adelanto', -1500000)]; filas[0].legajo = 9;
+  const cfg = { personas: { 'delta dani': { prestamo: '46', prestamoEtiqueta: 'DAN DEPTO', prestamoCuota: '38' } } };
+  const res = A.generar({ filas, legajos: lg, config: cfg, periodo: '202610', fecha: '2026-10-31', cotizacion: 1500 });
+  const a = res.asientos[0];
+  assert.equal(a.concepto, 'PRESTAMO DAN DEPTO 202610');
+  assert.equal(a.renglones[0].leyenda, '09 - PRESTAMO DAN DEPTO 202610 Cuota 38');
+  assert.deepEqual([a.renglones[0].haber, a.renglones[1].debe], [1000, 1000]);                   // 1.500.000 / 1.500 = 1.000 USD
+  assert.deepEqual([a.auxiliares[0].cod, a.auxiliares[0].desc, a.auxiliares[0].pct, a.auxiliares[0].importe], ['46', '09 Delta, Dani', 100, 1000]);
+  assert.equal(res.avisos.length, 0);
+  const sinCuota = A.generar({ filas, legajos: lg, config: { personas: { 'delta dani': { prestamo: '46' } } }, periodo: '202610', fecha: '2026-10-31', cotizacion: 1500 });
+  assert.ok(sinCuota.avisos.some(t => t.includes('cuota')));
+  const f = A.filasAsiento(res, '2026-10-31');
+  assert.deepEqual(f.map(r => r.fila), ['ASIENTO', 'Renglón', 'Auxiliar', 'Renglón']); assert.equal(f[0].cotizacion, 1500); assert.equal(f[0].moneda, 'DOL');
 });

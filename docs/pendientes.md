@@ -182,3 +182,13 @@ completo NO se versiona porque contiene valores de control de octubre.
   - Códigos de auxiliar «Instructivo de fabricación» (`4)` SUEPRO y `1)` NA) y el código de proyecto (primer término del nombre) están deducidos del export de Tango: verificar.
   - **Identificador** del asiento en el Excel de salida es provisorio (lo asigna Tango); **no se probó importarlo** a Tango. Hoy se usa como guía para cargar a mano.
   - La lista de quién va en asiento individual y su sector vive solo en el navegador de cada persona; si hace falta compartirla, hay que pasarla a una tabla (SQL aparte).
+  - **Revisión en dos vistas (pedido de administración):** la pantalla y el Excel de salida tienen **solo dos solapas**: «Detalle» (una fila por línea del informe, como la solapa Totales de Tango, con el asiento
+    de destino, subtotales por legajo, total por destino y el control) y «Asiento» (una sola tabla con todo lo necesario para cargarlo: título del asiento con fecha, moneda y cotización; sus renglones y, debajo
+    de cada uno, sus auxiliares). El detalle de sábados y extras por día queda como tercera pestaña en pantalla y al pie de «Detalle» en el Excel.
+  - **Préstamo con el formato del asiento modelo de Tango** (en dólares): concepto «PRESTAMO <etiqueta> AAAAMM», leyenda «<legajo> - PRESTAMO <etiqueta> AAAAMM Cuota N» y auxiliar tipo 30 «<código> - <legajo> <apellido y nombre>»
+    con el importe en dólares. La etiqueta (p. ej. «ILE DEPTO») y la cuota se cargan en la tabla de personas; la cotización es la del dólar blue promedio del último día del mes (la ingresa la persona; la app no la busca).
+  - **Fechas del Excel:** se escriben como número de día con formato dd/mm/aaaa. Con un `Date` la librería (SheetJS 0.18.5) en la zona horaria de Argentina grababa 23:59:12 del día anterior y Excel mostraba un día antes.
+  - **Cruce con los «Totales» multidimensionales de Tango (octubre, solo local):** los totales de Tango por legajo y concepto difirieron del «Resumen de conceptos liquidados» usado en tres casos: la coparticipación de una persona
+    liquidada con otra categoría, un descuento de Hogar que figura solo en Tango y un Monotributo que figura solo en el resumen. Falta definir cuál es la versión vigente. Posible mejora: leer directamente la solapa «Totales»
+    (trae el concepto por nombre, no por número).
+
