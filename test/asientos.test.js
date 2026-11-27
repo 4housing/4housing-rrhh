@@ -199,10 +199,10 @@ test('Sábado Taller se justifica con el informe de planificación: partes igual
   const a = asi(res, 'SABADOS, HS EXTRA Y FERIADOS VARIOS PROYECTOS');
   assert.equal(suma(a, '56000001', 'debe'), 1700);
   const inst = a.auxiliares.filter(x => x.tipoCod === '03').map(x => [x.cod, x.desc, x.importe]);
-  assert.deepEqual(inst, [['IF9001', 'IF9001 PROYECTO UNO', 500], ['PL0002', 'PL0002 PROYECTO DOS', 500], ['IF0007', 'IF0007 BASE', 700]]);   // 9001 → IF9001 (supuesto)
+  assert.deepEqual(inst, [['IF9001', 'IF9001 PROYECTO UNO', 500], ['PL0002', 'PL0002 PROYECTO DOS', 500], ['IF0007', 'IF0007 BASE', 700]]);   // 9001 → IF9001
   assert.equal(Math.round(a.auxiliares.filter(x => x.tipoCod === '03').reduce((s, x) => s + x.pct, 0) * 100), 10000);
   assert.deepEqual(res.sabados.slice(0, 2).map(x => [x.fecha, x.proyecto, x.importe]), [['2026-10-03', '9001 PROYECTO UNO', 500], ['2026-10-10', 'PL0002 PROYECTO DOS', 500]]);
-  assert.ok(res.avisos.some(t => t.includes('9001 PROYECTO UNO') && t.includes('IF9001 PROYECTO UNO')));
+  assert.ok(!res.avisos.some(t => t.includes('se supone')));                       // IF = Instructivo de Fabricación: confirmado, sin aviso
   assert.ok(res.avisos.some(t => t.includes('Edu') || t.includes('Eta')));            // sin sábado planificado con proyecto
   assert.ok(res.avisos.some(t => t.includes('SIN «Sábado Taller»') && t.includes('4 (1)') && !t.includes('5 (1)')));   // Dani sí; Eli (solo Mantenimiento) y Edu (ausente) no cuentan
   assert.equal(res.control.diferencia, 0);
@@ -257,4 +257,21 @@ test('con novedades: sin novedad de la persona, o día sin proyecto en la planif
   assert.equal(porProy['IF0007 BASE|Sábado Taller'], 200);
   assert.equal(porProy['IF0007 BASE|Horas extra / feriado'], 100);
   assert.equal(res.control.diferencia, 0);
+});
+
+test('personal fuera de la planificación de producción: sus días van al proyecto indicado sin aviso (se deduce o se configura)', () => {
+  const nov = A.leerNovedades([{ Fecha: new Date(2026, 9, 24), Legajo: 99, 'Cód. novedad': 'SABADO', Cantidad: 1 }, { Fecha: new Date(2026, 9, 24), Legajo: 7, 'Cód. novedad': 'SABADO', Cantidad: 1 }]);
+  const filas = [fila('Beta', 'Beto', 55013, 'Sábado Taller', 500), fila('Eta', 'Edu', 55013, 'Sábado Taller', 300)];
+  filas[1].legajo = 7;
+  const base = { filas, legajos: LEG, periodo: '202610', fecha: '2026-10-31', datos: A.leerDatos(CSV), novedades: nov, sabados: { proyecto: 'IF0007 BASE', motivo: 'm' } };
+  const auto = A.generar({ ...base, config: {} });                       // Beto (legajo 99, padrón 2) no figura en el informe → fuera de la planificación; Edu sí figura
+  assert.ok(!auto.avisos.some(t => t.includes('Beta')));
+  assert.ok(auto.avisos.some(t => t.includes('Eta') || t.includes('Edu')));
+  const d = auto.sabados.find(x => x.persona.startsWith('Beta'));
+  assert.equal(d.proyecto, 'IF0007 BASE'); assert.equal(d.tarea, 'Personal fuera de la planificación de producción');
+  assert.equal(auto.personas.find(p => p.clave === 'beta beto').fueraAuto, true);
+  const manual = A.generar({ ...base, config: { personas: { 'beta beto': { fueraPlan: false }, 'eta edu': { fueraPlan: true } } } });   // lo configurado manda
+  assert.ok(manual.avisos.some(t => t.includes('Beta')));
+  assert.ok(!manual.avisos.some(t => t.includes('Eta')));
+  assert.equal(manual.control.diferencia, 0);
 });

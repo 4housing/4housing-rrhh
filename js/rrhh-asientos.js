@@ -120,11 +120,12 @@
       .map(f => ({ legajo: limpio(f[0]), fecha: limpio(f[3]), dia: sinTildes(limpio(f[4])), proyecto: limpio(f[6]), tarea: limpio(f[10]), desc: limpio(f[11]) }));
   }
   const esProyecto = txt => /\d/.test(limpio(txt).split(' ')[0]);                       // «4417 VICUÑA», «PL0096 ANDY»; no «Mantenimiento», «Ausente»…
-  /** Auxiliar de Tango de un proyecto de la planificación: el que se configuró; si no, «4417 VICUÑA» → «IF4417 VICUÑA» (SUPUESTO: prefijo IF); «PL0096 ANDY» queda igual. */
+  /** Auxiliar de Tango de un proyecto de la planificación: el que se configuró; si no, «4417 VICUÑA» → «IF4417 VICUÑA» (IF = Instructivo de Fabricación, la clasificación que usan
+   *  todas las apps; la planificación la resume con el número); «PL0096 ANDY» queda igual. */
   function auxProyecto(txt, cfg) {
     const m = cfg && cfg[txt]; if (m && m.cod) return { cod: m.cod, desc: m.desc || txt, supuesto: false };
     const tok = txt.split(' ')[0];
-    return /^\d+$/.test(tok) ? { cod: 'IF' + tok, desc: 'IF' + txt, supuesto: true } : { cod: tok, desc: txt, supuesto: false };
+    return /^\d+$/.test(tok) ? { cod: 'IF' + tok, desc: 'IF' + txt, supuesto: false } : { cod: tok, desc: txt, supuesto: false };
   }
 
   /** Novedades registradas (Tango): solo se toman fecha, legajo, código y cantidad (nunca C.U.I.L. ni nombre). Interesan SABADO (días) y HRSEX1 (horas). */
@@ -157,13 +158,14 @@
         const lg = o.legajos && o.legajos.get(k), c = cfg[k] || {};
         const base = c.asiento === 'ind' ? 'ind' : 'pool';
         const sector = c.sector || sectorDeDepto(lg && lg.depto);
-        pers.set(k, { clave: k, nombre: limpio(f.apellidos + ', ' + f.nombre), legajo: lg ? lg.legajo : f.legajo, legajoInforme: f.legajo, depto: lg ? lg.depto : '', nombreLegajo: lg ? lg.nombre : '',
+        pers.set(k, { fueraCfg: typeof c.fueraPlan === 'boolean' ? c.fueraPlan : null, clave: k, nombre: limpio(f.apellidos + ', ' + f.nombre), legajo: lg ? lg.legajo : f.legajo, legajoInforme: f.legajo, depto: lg ? lg.depto : '', nombreLegajo: lg ? lg.nombre : '',
           sector, ind: base === 'ind', prestamo: c.prestamo || '', lineas: [], enPadron: !!lg });
       }
       pers.get(k).lineas.push(f);
     }
 
     const sabPorLegajo = new Map();                  // legajo → sábados trabajados con proyecto, según el informe de planificación
+    const legDatos = new Set((o.datos || []).map(r => r.legajo));   // legajos que figuran en el informe de planificación (con o sin proyecto)
     const datosDia = new Map();                      // legajo → fecha → fila del informe de planificación (cualquier día con proyecto)
     const novPor = new Map();                        // legajo → { SABADO:[{fecha,cant}], HRSEX1:[…] }: días PAGADOS según las novedades registradas
     for (const n of o.novedades || []) {
@@ -317,15 +319,18 @@
         porProy.set(proy, to2((porProy.get(proy) || 0) + imp)); if (tarea) { if (!tareas.has(proy)) tareas.set(proy, new Set()); tareas.get(proy).add(tarea); } };
       let resto = 0;
       const ids = p => [...new Set([String(p.legajo), String(p.legajoInforme)])];
+      /** Personal que no está en la planificación de producción (administrativos, Neuquén…): sus días van al proyecto indicado SIN aviso. Lo configurado manda; si no, se deduce de que no figure en el informe. */
+      const fuera = p => (p.fueraCfg != null ? p.fueraCfg : (o.datos || []).length > 0 && !ids(p).some(l => legDatos.has(l)));
+      const TAREA_FUERA = 'Personal fuera de la planificación de producción';
       const buscar = (mapa, p) => { for (const k of ids(p)) if (mapa.has(k)) return mapa.get(k); return null; };
-      const aBase = (e, concepto, imp, tarea) => { if (Math.abs(imp) < 0.005) return; resto = to2(resto + imp); sabados.push({ persona: e.p.nombre, legajo: e.p.legajo, concepto, fecha: '', proyecto: proyBase || 'A DEFINIR', tarea, importe: imp, origen: 'proyecto indicado' }); };
+      const aBase = (e, concepto, imp, tarea) => { if (Math.abs(imp) < 0.005) return; resto = to2(resto + imp); sabados.push({ persona: e.p.nombre, legajo: e.p.legajo, concepto, fecha: '', proyecto: proyBase || 'A DEFINIR', tarea: fuera(e.p) ? TAREA_FUERA : tarea, importe: imp, origen: fuera(e.p) ? 'proyecto indicado (fuera de la planificación)' : 'proyecto indicado' }); };
       /** Reparte `monto` entre días [{fecha, peso}]: el proyecto de cada día sale del informe de planificación (si ese día no figura, va al proyecto indicado). */
       const porDias = (e, concepto, monto, dias, origen) => {
         const partes = repartir(monto, dias.map(d => d.peso));
         dias.forEach((d, i) => {
           const fila = (buscar(datosDia, e.p) || new Map()).get(d.fecha);
           if (fila) { sumaProy(fila.proyecto, partes[i], fila.tarea); sabados.push({ persona: e.p.nombre, legajo: e.p.legajo, concepto, fecha: d.fecha, proyecto: fila.proyecto, tarea: fila.tarea, importe: partes[i], origen }); }
-          else { if ((o.datos || []).length) avisos.push(e.p.nombre + ': el ' + d.fecha + ' no figura con proyecto en el informe de planificación; va al proyecto indicado.'); resto = to2(resto + partes[i]); sabados.push({ persona: e.p.nombre, legajo: e.p.legajo, concepto, fecha: d.fecha, proyecto: proyBase || 'A DEFINIR', tarea: 'Sin planificación ese día', importe: partes[i], origen: 'proyecto indicado' }); }
+          else { const f0 = fuera(e.p); if ((o.datos || []).length && !f0) avisos.push(e.p.nombre + ': el ' + d.fecha + ' no figura con proyecto en el informe de planificación; va al proyecto indicado.'); resto = to2(resto + partes[i]); sabados.push({ persona: e.p.nombre, legajo: e.p.legajo, concepto, fecha: d.fecha, proyecto: proyBase || 'A DEFINIR', tarea: f0 ? TAREA_FUERA : 'Sin planificación ese día', importe: partes[i], origen: f0 ? 'proyecto indicado (fuera de la planificación)' : 'proyecto indicado' }); }
         });
       };
       for (const e of D.sabList) {
@@ -340,7 +345,7 @@
             const dPlan = [...(buscar(sabPorLegajo, e.p) || new Map()).values()].map(x => ({ fecha: x.fecha, peso: 1 }));
             if (hayNov) avisos.push(e.p.nombre + ': tiene «Sábado Taller» pero ninguna novedad SABADO en el archivo de novedades.');
             if (dPlan.length) porDias(e, 'Sábado Taller', sab, dPlan, 'sábados planificados (sin novedad)');
-            else { if ((o.datos || []).length) avisos.push(e.p.nombre + ': sin sábado planificado con proyecto en el informe de planificación; su sábado va al proyecto indicado.'); aBase(e, 'Sábado Taller', sab, 'Sin sábado planificado con proyecto'); }
+            else { const f0 = fuera(e.p); if ((o.datos || []).length && !f0) avisos.push(e.p.nombre + ': sin sábado planificado con proyecto en el informe de planificación; su sábado va al proyecto indicado.'); aBase(e, 'Sábado Taller', sab, f0 ? TAREA_FUERA : 'Sin sábado planificado con proyecto'); }
           }
         }
         if (Math.abs(he) > 0.005) {
@@ -394,7 +399,7 @@
       a.debe = d; a.haber = h;
       if (Math.abs(d - h) > 0.005) avisos.push('El asiento «' + a.concepto + '» no balancea (debe ' + d + ' / haber ' + h + ').');
     }
-    const personas = [...pers.values()].map(p => ({ clave: p.clave, nombre: p.nombre, legajo: p.legajo, depto: p.depto, sector: p.sector, ind: p.ind, prestamo: p.prestamo,
+    const personas = [...pers.values()].map(p => ({ fueraCfg: p.fueraCfg, fueraAuto: !(o.datos || []).length ? false : ![...new Set([String(p.legajo), String(p.legajoInforme)])].some(l => legDatos.has(l)), clave: p.clave, nombre: p.nombre, legajo: p.legajo, depto: p.depto, sector: p.sector, ind: p.ind, prestamo: p.prestamo,
       tienePrestamo: p.lineas.some(l => l.nro === 55041), total: to2(p.lineas.reduce((s, l) => s + l.importe, 0)) }));
     const proyectosPlan = [...new Set([...proyUsados, ...[...sabPorLegajo.values()].flatMap(m => [...m.values()].map(r => r.proyecto))])].sort();
     return { asientos, sinDestino, sabados, proyectosPlan, avisos: [...new Set(avisos)], control, personas };

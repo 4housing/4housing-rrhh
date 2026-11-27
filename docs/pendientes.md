@@ -168,8 +168,11 @@ completo NO se versiona porque contiene valores de control de octubre.
     (horas por quincena), `BRUTO` ↔ sueldo bruto del recibo. `HABVTA` (día hábil posventa) no tuvo concepto en el informe de efectivo de octubre.
   - **No hace falta correr `rrhh_03_lectura_planificacion.sql`** para esto (el reparto usa el CSV de planificación y el archivo de novedades subidos en el navegador). Sigue siendo
     la forma de leer la planificación directo desde la app a futuro.
-  - **Equivalencia de proyectos:** la planificación llama «4417 VICUÑA» a lo que en Tango es «IF4417 VICUÑA». Si no se configura, se SUPONE el prefijo IF para códigos numéricos
-    (el estado queda marcado como «Supuesto» en la tabla de proyectos, que se recuerda en el navegador). Falta confirmarlo y revisar los demás proyectos.
+  - **Equivalencia de proyectos (confirmada por administración):** «IF» es el **Instructivo de Fabricación**, la clasificación (auxiliar) que usan todas las apps; la planificación la resume
+    solo con el número («4417 VICUÑA» = «IF4417 VICUÑA»). Para códigos numéricos se agrega IF automáticamente; se puede corregir por proyecto en la tabla de la pantalla (se recuerda en el navegador).
+  - **Varios proyectos el mismo día:** se usa el primero (confirmado por administración).
+  - **Personal fuera de la planificación de producción** (administrativos, Neuquén): sus días van al proyecto indicado (octubre: 4417) **sin aviso**. Se deduce de que no figure en el informe de
+    planificación, o se marca a mano en la tabla de personas (lo configurado manda). Quien figura en el informe (p. ej. como supervisor) sin proyecto ese día se avisa hasta que se lo marque.
   - **Controles al cruzar los informes** (octubre): varias personas tienen días pagados (novedades) que no figuran con proyecto en la planificación, y hay sábados planificados
     sin pago en el informe de efectivo. La app los avisa; falta que administración y planificación los revisen.
   - Neuquén: el asiento suma todos los conceptos de esas personas; en septiembre difiere de lo cargado porque se registró una rendición final con otro importe.
