@@ -217,3 +217,6 @@ completo NO se versiona porque contiene valores de control de octubre.
   configurable (30 h por defecto, se recuerda en el navegador), ausencias sin aviso, 3 o más llegadas tarde y fichadas por completar.
 - **En bloque:** «Aprobar en bloque las extras sin otras anormalidades» (o las de una persona) aprueba las extras calculadas de los días que no tienen otra anormalidad; «Marcar como revisados los feriados trabajados» solo los marca como vistos (no aprueba horas).
   «Pendiente» en la versión anterior = el día todavía no fue marcado como revisado por RRHH.
+- **Marca «Modificado» (pedido de administración):** todo cambio hecho a mano se ve en la tabla con una marca amarilla «Modificado»; al acercar el cursor aparece un recuadro con lo que había antes (las fichadas tal como llegaron de Tango y las horas que daban),
+  lo que cambió (fichadas agregadas o anuladas con su motivo) y, si RRHH aprobó una extra distinta de la calculada, la diferencia; con quién lo hizo y cuándo. El mismo detalle se ve completo en el panel del día. El botón **Registro de cambios (Excel)** baja todos
+  los cambios del período. Lógica en `describirCambios` (`js/rrhh-fichadas.js`, probada). El nombre de quien modificó sale de la tabla `perfiles` del portal si el usuario puede leerla; si no, figura «RRHH» (queda guardado el usuario en la base).
