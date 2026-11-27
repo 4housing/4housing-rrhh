@@ -144,5 +144,44 @@
     return out.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.legajo - b.legajo);
   }
 
-  return { leerTxt, armarTxt, calcularDia, armarPartes, codigoFichador, legajoDe, hm, fmt, redondear, diaSemana, NOMBRE_DIA };
+  /* ------------------------ qué amerita una decisión ------------------------ */
+  // Códigos de novedad que justifican (o ya resuelven) un día sin fichadas.
+  const JUSTIFICACION = { HSENF: 'Enfermedad', LICART: 'Licencia por ART', HSJUS: 'Horas justificadas', HSJUSVA: 'Horas justificadas', VACJOR: 'Vacaciones', VACM: 'Vacaciones',
+    HSINJ: 'Ausencia injustificada (ya cargada)', LICSSDO: 'Licencia sin goce', LICCUIFAM: 'Licencia por cuidado familiar', MATERNIDAD: 'Maternidad', MATRIMONIO: 'Matrimonio', MATRIM: 'Matrimonio',
+    NACIMIENTO: 'Nacimiento', FALLECIM: 'Fallecimiento', EXAMEN: 'Examen', 'MÉDICO': 'Médico', TRAMITE: 'Trámite', SANGRE: 'Donación de sangre', MUDANZA: 'Mudanza', TEMPORAL: 'Temporal', EXCEDENCIA: 'Excedencia' };
+  const ACCION = ['ausente', 'fichada_unica', 'mas_de_dos', 'sin_horario', 'dia_sin_horario', 'revisar_feriado', 'salida_temprana', 'tarde'];
+  const EXTRAS_ALTAS_MIN = 1800;                                    // más de 30 h de extras en el período = llamativo (se puede cambiar en la pantalla)
+  /** 'revisar' = pide una decisión (falta algo, llegó tarde, feriado…) · 'extra' = solo hay horas extra por aprobar · 'ok' = no hace falta mirarlo.
+   *  Una ausencia con novedad ese día (enfermedad, ART, vacaciones…) ya está resuelta. */
+  function clasificar(parte, codigos) {
+    const cod = (codigos || []).find(c => JUSTIFICACION[c]), justificacion = cod ? JUSTIFICACION[cod] : null;
+    const accion = parte.marcas.some(m => ACCION.includes(m) && !(m === 'ausente' && justificacion));
+    const extra = ['EXTRA 50%', 'EXTRA 100%'].some(k => (parte.pagado[k] || 0) > 0);
+    return { clase: accion ? 'revisar' : extra ? 'extra' : 'ok', justificacion };
+  }
+  /** Resumen del período por persona. Cada parte trae: pagado, marcas, n, clase, justificacion, revisado, aprob50, aprob100. */
+  function resumenPersonas(partes, opciones) {
+    const lim = opciones && opciones.extrasAltasMin != null ? opciones.extrasAltasMin : EXTRAS_ALTAS_MIN, m = new Map();
+    for (const p of partes) {
+      let r = m.get(p.legajo);
+      if (!r) m.set(p.legajo, r = { legajo: p.legajo, horario: p.horario, dias: 0, normalMin: 0, extra50Min: 0, extra100Min: 0, aprob50Min: 0, aprob100Min: 0, extraPorAprobar: 0, porRevisar: 0, ausentesSinAviso: 0, justificados: 0, tardes: 0, fichadasUnicas: 0 });
+      if (p.n >= 2) r.dias++;
+      r.normalMin += p.pagado['NORMAL 1'] || 0; r.extra50Min += p.pagado['EXTRA 50%'] || 0; r.extra100Min += p.pagado['EXTRA 100%'] || 0;
+      if (p.revisado) { r.aprob50Min += p.aprob50 || 0; r.aprob100Min += p.aprob100 || 0; }
+      else if (p.clase === 'extra') r.extraPorAprobar++; else if (p.clase === 'revisar') r.porRevisar++;
+      if (p.marcas.includes('ausente')) { if (p.justificacion) r.justificados++; else r.ausentesSinAviso++; }
+      if (p.marcas.includes('tarde')) r.tardes++;
+      if (p.marcas.includes('fichada_unica')) r.fichadasUnicas++;
+    }
+    return [...m.values()].map(r => {
+      const ll = [];
+      if (r.extra50Min + r.extra100Min > lim) ll.push('Extras altas');
+      if (r.ausentesSinAviso) ll.push('Ausente sin aviso');
+      if (r.tardes >= 3) ll.push('Llegadas tarde reiteradas');
+      if (r.fichadasUnicas) ll.push('Fichadas por completar');
+      return { ...r, llamativo: ll };
+    }).sort((a, b) => a.legajo - b.legajo);
+  }
+
+  return { leerTxt, armarTxt, calcularDia, armarPartes, clasificar, resumenPersonas, JUSTIFICACION, EXTRAS_ALTAS_MIN, codigoFichador, legajoDe, hm, fmt, redondear, diaSemana, NOMBRE_DIA };
 });
