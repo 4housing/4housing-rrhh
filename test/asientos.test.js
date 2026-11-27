@@ -275,3 +275,12 @@ test('personal fuera de la planificación de producción: sus días van al proye
   assert.ok(!manual.avisos.some(t => t.includes('Eta')));
   assert.equal(manual.control.diferencia, 0);
 });
+
+test('coparticipación de operarios: los nombres de COPAR pasan por la tabla de equivalencias de proyectos', () => {
+  const filas = [fila('Zeta', 'Zoe', 55010, 'Copart Ope', 1000)];
+  const copar = [{ codigo: 'IF9001', nombre: 'IF9001 NOMBRE EN COPAR', importe: 300 }, { codigo: 'PL0002', nombre: 'PL0002 PROYECTO DOS', importe: 100 }];
+  const res = A.generar({ filas, legajos: LEG, config: { proyectos: { 'IF9001 NOMBRE EN COPAR': { cod: 'IF9001', desc: 'IF9001 NOMBRE EN TANGO' } } }, periodo: '202610', fecha: '2026-10-31', copar });
+  const a = asi(res, 'COMISION COPART OPERARIOS');
+  assert.deepEqual(a.auxiliares.filter(x => x.tipoCod === '03').map(x => [x.cod, x.desc, x.importe, x.pct]), [['IF9001', 'IF9001 NOMBRE EN TANGO', 750, 75], ['PL0002', 'PL0002 PROYECTO DOS', 250, 25]]);
+  assert.deepEqual(res.proyectosPlan.sort(), ['IF9001 NOMBRE EN COPAR', 'PL0002 PROYECTO DOS']);
+});

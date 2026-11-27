@@ -374,7 +374,10 @@
       aux(a, n, 'SUELDOS', [sec('01', total)]);
       const pj = (o.copar || []).filter(x => x.importe > 0);
       if (!pj.length) { avisos.push('Coparticipación Operarios: falta cargar la planilla COPAR para repartir entre proyectos.'); aux(a, n, 'INSTR', [{ cod: '', desc: 'A DEFINIR (falta COPAR)', imp: total }]); }
-      else { const ps = repartir(total, pj.map(x => x.importe)); aux(a, n, 'INSTR', pj.map((x, i) => ({ cod: x.codigo, desc: x.nombre, imp: ps[i] }))); }
+      else {
+        const ps = repartir(total, pj.map(x => x.importe)), cfgP = (o.config && o.config.proyectos) || {};   // el nombre en COPAR puede no ser el del auxiliar de Tango: pasa por la tabla de equivalencias
+        aux(a, n, 'INSTR', pj.map((x, i) => { const m = auxProyecto(x.nombre, cfgP); proyUsados.add(x.nombre); return { cod: m.cod, desc: m.desc, imp: ps[i] }; }));
+      }
     }
     for (const { p, imp } of D.prestamos) {
       if (!o.cotizacion) { sinDestino.push({ persona: p.nombre, nro: 55041, concepto: 'Adelanto de coparticipación', importe: imp, motivo: 'Falta la cotización del dólar' }); continue; }
