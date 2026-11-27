@@ -151,3 +151,26 @@ test('describirCambios: dice qué se modificó, qué había antes, por quién y 
   // una fichada agregada y luego anulada no cuenta como cambio
   assert.equal(F.describirCambios({ fichadasDia: [{ hora: '07:00', origen: 'manual', anulada: true }], antes: { horas: [], pagado: {} }, ahora: { horas: [], pagado: {} } }).modificado, false);
 });
+
+test('celdaCalendario: horas en verde, extras en azul chico, menos horas en rojo, ausencias por tipo', () => {
+  const c = (p, extra) => F.celdaCalendario({ pagado: {}, marcas: [], n: 2, esperadoMin: 480, ...p, ...(extra || {}) });
+  assert.deepEqual(c({ pagado: { 'NORMAL 1': 480 } }), { texto: '8', clase: 'ok', extras: '', menos: '' });
+  assert.deepEqual(c({ pagado: { 'NORMAL 1': 480, 'EXTRA 50%': 90 } }), { texto: '8', clase: 'ok', extras: '+1,5 h 50 %', menos: '' });
+  assert.equal(c({ pagado: { 'NORMAL 1': 480, 'EXTRA 50%': 60, 'EXTRA 100%': 120 } }).extras, '+1 h 50 % · +2 h 100 %');
+  assert.deepEqual(c({ pagado: { 'NORMAL 1': 420 } }), { texto: '7', clase: 'ok', extras: '', menos: '−1 h' });                  // trabajó una hora menos
+  assert.equal(c({ pagado: { 'NORMAL 1': 210 } }).menos, '−4,5 h');
+  assert.equal(c({ pagado: { 'NORMAL 1': 480, 'EXTRA 50%': 17 } }).extras, '+17 min 50 %');                                    // minutos exactos (unidad 1)
+  assert.equal(c({ pagado: { 'NORMAL 1': 412 } }).menos, '−1 h 8 min'); assert.equal(c({ pagado: { 'NORMAL 1': 452 } }).menos, '−28 min');
+  assert.deepEqual(c({ pagado: { 'NORMAL 1': 300 }, esperadoMin: 300 }).menos, '');                                              // jornada parcial completa
+  const aus = ex => c({ marcas: ['ausente'], n: 0, ...ex });
+  assert.deepEqual([aus({ codigos: ['VACM'] }).texto, aus({ codigos: ['VACM'] }).clase], ['Vac.', 'vac']);
+  assert.deepEqual([aus({ codigos: ['HSENF'], justificacion: 'Enfermedad' }).texto, aus({ codigos: ['HSENF'] }).clase], ['Enf.', 'justificada']);
+  assert.equal(aus({ codigos: ['LICART'], justificacion: 'Licencia por ART' }).texto, 'ART');
+  assert.deepEqual([aus({ codigos: ['HSJUS'], justificacion: 'Horas justificadas' }).texto, aus({ codigos: ['HSJUS'], justificacion: 'x' }).clase], ['Aus J.', 'justificada']);
+  assert.deepEqual([aus({}).texto, aus({}).clase], ['Aus. Inj.', 'injustificada']);                                               // sin novedad = sin aviso
+  assert.equal(aus({ codigos: ['HSINJ'], justificacion: 'Ausencia injustificada (ya cargada)' }).texto, 'Aus. Inj.');
+  assert.deepEqual([c({ marcas: ['fichada_unica'], n: 1 }).texto, c({ n: 1 }).clase], ['?', 'unica']);
+  const sab = c({ pagado: { 'EXTRA 50%': 300, 'EXTRA 100%': 90 }, esperadoMin: 0 });                                             // sábado trabajado: sin horas normales, solo extras
+  assert.deepEqual([sab.texto, sab.clase, sab.extras, sab.menos], ['', 'ok', '+5 h 50 % · +1,5 h 100 %', '']);
+  assert.deepEqual([c({ marcas: ['feriado'], pagado: { 'EXTRA 100%': 420 }, esperadoMin: 0 }).texto, c({ marcas: ['feriado'], pagado: { 'EXTRA 100%': 420 }, esperadoMin: 0 }).clase], ['Fer.', 'fer']);
+});
