@@ -81,7 +81,7 @@
         { k: 'cantidad', titulo: 'Cantidad', tipo: 'n', texto: f => (Number(f.cantidad) ? String(Number(f.cantidad)).replace('.', ',') : ''), valor: f => Number(f.cantidad) },
         { k: 'valor', titulo: 'Valor', tipo: 'n', texto: f => (Number(f.valor) ? Number(f.valor).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''), valor: f => Number(f.valor) },
         { k: 'observaciones', titulo: 'Observaciones', cls: 'izq', min: 200, texto: f => f.observaciones || '' },
-        { k: 'origen', titulo: 'Origen', cls: 'izq', texto: f => (f.origen === 'fichadas' ? 'Desde Fichadas' : 'Manual') },
+        { k: 'origen', titulo: 'Origen', cls: 'izq', texto: f => (f.origen === 'fichadas' ? 'Desde Fichadas' : f.origen === 'vacaciones' ? 'Vacaciones' : 'Manual') },
         { k: 'estado', titulo: 'Estado', cls: 'izq', min: 130, texto: f => (f.exportado_en ? 'Exportada ' + dmy(f.exportado_en.slice(0, 10)) : 'Pendiente'), valor: f => (f.exportado_en ? 1 : 0) },
         { k: 'acc', titulo: '', cls: 'izq', min: 70, texto: () => '', html: f => (puedeEditar && !f.exportado_en ? '<button type="button" class="minib" data-del="' + esc(f.id) + '">Borrar</button>' : '') }];
       est.grid = Tabla.crear({ el: $('nv-tabla'), id: 'novedades-v1', columnas: cols, esc,

@@ -42,10 +42,18 @@ Marcadas **[verificado]** cuando coinciden con el informe de partes de Delta de 
 - Feriados: se calculan con el horario de feriados pero **siempre** quedan para revisar. **[sin resolver, ver pregunta 1]**
 - Extras llamativas: más de 30 h en el período (se puede cambiar en pantalla).
 
+## 4 bis. Vacaciones (etapa 3a)
+- **Saldo**: los días que corresponden a cada persona y año **los escribe RRHH**; la app no los calcula. Restan = corresponden − días de pedidos aprobados. «Restarían si apruebo todo» descuenta además los pedidos sin decidir.
+- **Pedido**: desde, hasta, días (escritos por RRHH), código y cantidad por día. Estados: Pedido → Aprobado por el jefe → Aprobado (RRHH); o Rechazado / Cancelado. Un aprobado con novedades ya generadas no se cancela desde la pantalla.
+- **Generar novedades**: una por día elegido. Las fechas sugeridas son lunes a viernes sin feriados cargados; RRHH las confirma. **No es la regla de Tango**: cuando se defina, se ajusta para que coincidan.
+- **Control de integridad**: avisa saldo negativo, sin saldo cargado, aprobado sin novedades generadas y novedades distintas de los días del pedido.
+- Todavía **no** hay acceso para empleados ni jefes (etapa 3b).
+
 ## 5. Pantallas
 - **Fichadas → Partes por día**: una fila por persona y día, con filtros por columna, orden, ancho ajustable y exportación a Excel. Clic en una fila abre el panel para corregir.
 - **Fichadas → Calendario**: personas × días. Verde = horas normales; naranja = «Aus. J.», «Enf.», «ART»; rojo = «Aus. Inj.»; azul = «Vac.»; gris = «Fer.»; amarillo «?» = fichada única. Debajo, en chico: extras en azul («+1,5 h 50 %») y horas de menos en rojo («−1 h»). Borde amarillo = necesita decisión; esquina marcada = modificado.
 - **Fichadas → Resumen del período**: por persona (días, horas, extras aprobadas, ausencias, llegadas tarde); fila amarilla = algo llamativo.
+- **Vacaciones**: solapa *Pedidos* (carga, aprobación del jefe y de RRHH, generación de novedades VACJOR / VACM) y solapa *Saldos y control* (días que corresponden, aprobados, restantes y control de integridad).
 - **Novedades**: carga de renglones, tabla de pendientes y exportadas, **Exportar pendientes para Delta** (marca como exportado; lo exportado ya no se puede borrar).
 
 ## 6. Qué se guarda y quién lo ve
@@ -92,3 +100,4 @@ Cada una dice por qué importa. Marcá la respuesta y la fecha cuando se resuelv
 ## 8. Registro de cambios del diccionario
 - 2026-11-27: primera versión (circuito, glosario, clasificación, reglas, pantallas, qué se guarda y 20 dudas pendientes). Novedades v1 publicada; las extras aprobadas quedaron afuera hasta resolver la duda 10.
 - 2026-11-27: vacaciones: decisiones tomadas (cada empleado entra; aprueba jefe y luego RRHH; cálculo de días a definir con RRHH) y preguntas 21 a 25.
+- 2026-11-27: vacaciones etapa 3a publicada en la rama (saldos y pedidos cargados por RRHH, control de integridad); los días los escribe RRHH hasta definir la regla de Tango.
