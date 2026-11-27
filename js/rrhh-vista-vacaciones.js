@@ -45,7 +45,7 @@
         if (!est.uid && sb.auth && sb.auth.getUser) { const u = await sb.auth.getUser(); est.uid = u && u.data && u.data.user ? u.data.user.id : null; }
         const [sal, ped, nv, emp, fer] = await Promise.all([
           traerTodo(sb, 'rrhh_vac_saldos', '*', ['anio', 'legajo']), traerTodo(sb, 'rrhh_vac_pedidos', '*', ['desde', 'legajo', 'id']),
-          traerTodo(sb, 'rrhh_novedades', 'id,vac_pedido', ['id'], q => q.not('vac_pedido', 'is', null)),
+          traerTodo(sb, 'rrhh_novedades_carga', 'id,vac_pedido', ['id'], q => q.not('vac_pedido', 'is', null)),
           traerTodo(sb, 'rrhh_empleados', 'legajo,nombre', ['legajo']), traerTodo(sb, 'rrhh_feriados', '*', ['fecha'])]);
         Object.assign(est, { saldos: sal, pedidos: ped, novVac: nv, nombres: new Map(emp.map(e => [e.legajo, e.nombre])), feriados: new Set(fer.map(f => f.fecha)) });
       } catch (e) { $('va-tabla').innerHTML = '<div class="empty">No pude cargar las vacaciones: ' + esc(e.message) + '<br>¿Se corrieron <code>sql/rrhh_07_novedades.sql</code> y <code>sql/rrhh_08_vacaciones.sql</code> en Supabase?</div>'; return; }
@@ -57,6 +57,7 @@
       if (!puedeEditar) { $('va-form').innerHTML = '<div class="est av">Tu usuario puede ver las vacaciones pero no cargarlas.</div>'; return; }
       $('va-form').innerHTML = est.vista === 'pedidos'
         ? `<div class="card"><div class="card-h"><h3>Cargar un pedido de vacaciones</h3></div><div class="card-b"><div class="barra">
+            <label>Empresa<select id="va-empresa">${Object.entries(N.EMPRESAS).map(([k, v]) => '<option value="' + k + '">' + esc(v) + '</option>').join('')}</select></label>
             <label>Legajo<input type="number" id="va-legajo" min="1" step="1" style="width:90px"></label>
             <label>Desde<input type="date" id="va-desde"></label><label>Hasta<input type="date" id="va-hasta"></label>
             <label>Días (los escribís vos)<input type="text" id="va-dias" inputmode="decimal" style="width:70px"></label>
@@ -65,6 +66,7 @@
             <label>Observaciones<input type="text" id="va-obs" maxlength="200" size="24"></label><button type="button" class="btn" id="va-agregar">Cargar pedido</button></div>
             <p class="nota" style="margin-bottom:0">El pedido nace en «Pedido». Después se registra la aprobación del jefe y la de RRHH; al aprobar, se generan las novedades en Novedades. «Cantidad por día» es lo que lleva cada día de vacaciones en Delta (para ese código).</p></div></div>`
         : `<div class="card"><div class="card-h"><h3>Cargar o corregir el saldo de un año</h3></div><div class="card-b"><div class="barra">
+            <label>Empresa<select id="vs-empresa">${Object.entries(N.EMPRESAS).map(([k, v]) => '<option value="' + k + '">' + esc(v) + '</option>').join('')}</select></label>
             <label>Legajo<input type="number" id="vs-legajo" min="1" step="1" style="width:90px"></label><label>Año<input type="number" id="vs-anio" value="${est.anio}" style="width:80px"></label>
             <label>Días que le corresponden<input type="text" id="vs-dias" inputmode="decimal" style="width:90px"></label><label>Nota<input type="text" id="vs-nota" maxlength="200" size="30"></label>
             <button type="button" class="btn" id="vs-guardar">Guardar saldo</button></div>
@@ -74,19 +76,19 @@
     $('va-form').addEventListener('click', ev => {
       const b = ev.target.closest('button'); if (!b) return;
       if (b.id === 'va-agregar') accion(async () => {
-        const p = V.normalizarPedido({ legajo: $('va-legajo').value, desde: $('va-desde').value, hasta: $('va-hasta').value, dias: $('va-dias').value, codigo: $('va-codigo').value, cantidad: $('va-cant').value, observaciones: $('va-obs').value });
+        const p = V.normalizarPedido({ empresa: $('va-empresa').value, legajo: $('va-legajo').value, desde: $('va-desde').value, hasta: $('va-hasta').value, dias: $('va-dias').value, codigo: $('va-codigo').value, cantidad: $('va-cant').value, observaciones: $('va-obs').value });
         const errs = V.validarPedido(p); if (errs.length) { msg(errs.join(' '), 'mal'); return; }
         if (!est.nombres.has(p.legajo) && !window.confirm('El legajo ' + p.legajo + ' no figura en el padrón. ¿Cargarlo igual?')) return;
-        const sup = est.pedidos.find(x => x.legajo === p.legajo && ['pedido', 'aprobado_jefe', 'aprobado'].includes(x.estado) && x.desde <= p.hasta && x.hasta >= p.desde);
+        const sup = est.pedidos.find(x => x.empresa === p.empresa && x.legajo === p.legajo && ['pedido', 'aprobado_jefe', 'aprobado'].includes(x.estado) && x.desde <= p.hasta && x.hasta >= p.desde);
         if (sup && !window.confirm('Ya hay un pedido de ese legajo (' + dmy(sup.desde) + ' al ' + dmy(sup.hasta) + ', ' + V.ESTADOS[sup.estado] + ') que se superpone. ¿Cargar igual?')) return;
         const { data, error } = await sb.from('rrhh_vac_pedidos').insert(p).select(); if (error) throw new Error(error.message);
         est.pedidos.push(data[0]); ['va-dias', 'va-obs'].forEach(i => { $(i).value = ''; }); pintar();
       }, 'Pedido cargado.');
       if (b.id === 'vs-guardar') accion(async () => {
-        const s = V.normalizarSaldo({ legajo: $('vs-legajo').value, anio: $('vs-anio').value, dias: $('vs-dias').value, nota: $('vs-nota').value });
+        const s = V.normalizarSaldo({ empresa: $('vs-empresa').value, legajo: $('vs-legajo').value, anio: $('vs-anio').value, dias: $('vs-dias').value, nota: $('vs-nota').value });
         const errs = V.validarSaldo(s); if (errs.length) { msg(errs.join(' '), 'mal'); return; }
-        const { data, error } = await sb.from('rrhh_vac_saldos').upsert({ ...s, actualizado_por: est.uid, actualizado_en: new Date().toISOString() }, { onConflict: 'legajo,anio' }).select(); if (error) throw new Error(error.message);
-        est.saldos = est.saldos.filter(x => !(x.legajo === s.legajo && x.anio === s.anio)).concat(data); est.anio = s.anio; pintar();
+        const { data, error } = await sb.from('rrhh_vac_saldos').upsert({ ...s, actualizado_por: est.uid, actualizado_en: new Date().toISOString() }, { onConflict: 'empresa,legajo,anio' }).select(); if (error) throw new Error(error.message);
+        est.saldos = est.saldos.filter(x => !(x.empresa === s.empresa && x.legajo === s.legajo && x.anio === s.anio)).concat(data); est.anio = s.anio; pintar();
       }, 'Saldo guardado.');
     });
 
@@ -109,6 +111,7 @@
       if (est.vista === 'pedidos') {
         const cols = [
           { k: 'desde', titulo: 'Desde', cls: 'izq', sticky: true, min: 90, texto: f => dmy(f.desde), valor: f => f.desde }, { k: 'hasta', titulo: 'Hasta', cls: 'izq', min: 90, texto: f => dmy(f.hasta), valor: f => f.hasta },
+          { k: 'empresa', titulo: 'Empresa', cls: 'izq', min: 80, texto: f => (f.empresa === '4H_OC' ? '4H OC' : f.empresa) },
           { k: 'legajo', titulo: 'Legajo', tipo: 'n', cls: 'izq', min: 60, texto: f => String(f.legajo) }, { k: 'persona', titulo: 'Persona', cls: 'izq', min: 190, texto: f => nombre(f.legajo) },
           { k: 'dias', titulo: 'Días', tipo: 'n', texto: f => dec(f.dias), valor: f => Number(f.dias) }, { k: 'codigo', titulo: 'Código', cls: 'izq', min: 90 },
           { k: 'estado', titulo: 'Estado', cls: 'izq', min: 150, texto: f => V.ESTADOS[f.estado] || f.estado },
@@ -117,12 +120,12 @@
           { k: 'obs', titulo: 'Observaciones', cls: 'izq', min: 180, texto: f => [f.observaciones, f.motivo_rechazo ? 'Rechazo: ' + f.motivo_rechazo : ''].filter(Boolean).join(' · ') },
           { k: 'acc', titulo: '', cls: 'izq', min: 280, texto: () => '', html: botones }];
         est.cols = cols; est.grid = Tabla.crear({ el: $('va-tabla'), id: 'vacaciones-pedidos-v1', columnas: cols, esc, filaAttrs: f => (f.estado === 'aprobado' && !f.novedades_generadas_en ? 'style="background:#fbf6e6"' : ''),
-          pie: rows => ['', '', '', 'TOTAL · ' + rows.length + ' pedidos', dec(rows.reduce((s, f) => s + Number(f.dias), 0)), '', '', '', '', '', ''] });
+          pie: rows => ['', '', '', '', 'TOTAL · ' + rows.length + ' pedidos', dec(rows.reduce((s, f) => s + Number(f.dias), 0)), '', '', '', '', '', ''] });
         est.grid.render(est.pedidos);
       } else {
         const res = V.resumen(est.saldos, est.pedidos, est.novVac).map(r => ({ ...r, persona: nombre(r.legajo) }));
         const cols = [
-          { k: 'anio', titulo: 'Año', tipo: 'n', cls: 'izq', min: 60, texto: f => String(f.anio) }, { k: 'legajo', titulo: 'Legajo', tipo: 'n', cls: 'izq', sticky: true, min: 60, texto: f => String(f.legajo) },
+          { k: 'anio', titulo: 'Año', tipo: 'n', cls: 'izq', min: 60, texto: f => String(f.anio) }, { k: 'empresa', titulo: 'Empresa', cls: 'izq', min: 80, texto: f => (f.empresa === '4H_OC' ? '4H OC' : f.empresa) }, { k: 'legajo', titulo: 'Legajo', tipo: 'n', cls: 'izq', sticky: true, min: 60, texto: f => String(f.legajo) },
           { k: 'persona', titulo: 'Persona', cls: 'izq', min: 190 },
           { k: 'dias', titulo: 'Corresponden', tipo: 'n', texto: f => dec(f.dias), valor: f => (f.dias == null ? '' : f.dias) }, { k: 'aprobados', titulo: 'Aprobados', tipo: 'n', texto: f => dec(f.aprobados), valor: f => f.aprobados },
           { k: 'pendientes', titulo: 'Sin decidir', tipo: 'n', texto: f => dec(f.pendientes), valor: f => f.pendientes },
@@ -130,7 +133,7 @@
           { k: 'conPendientes', titulo: 'Restarían si\napruebo todo', tipo: 'n', texto: f => dec(f.conPendientes), valor: f => (f.conPendientes == null ? '' : f.conPendientes) },
           { k: 'control', titulo: 'Control de integridad', cls: 'izq', min: 280, texto: f => f.control.join(' · ') || 'OK' }, { k: 'nota', titulo: 'Nota', cls: 'izq', min: 160 }];
         est.cols = cols; est.grid = Tabla.crear({ el: $('va-tabla'), id: 'vacaciones-saldos-v1', columnas: cols, esc, filaAttrs: f => (f.control.length ? 'style="background:#fbf6e6"' : ''),
-          pie: rows => ['', '', 'TOTAL · ' + rows.length + ' filas', dec(rows.reduce((s, f) => s + (f.dias || 0), 0)), dec(rows.reduce((s, f) => s + f.aprobados, 0)), dec(rows.reduce((s, f) => s + f.pendientes, 0)), '', '', '', ''] });
+          pie: rows => ['', '', '', 'TOTAL · ' + rows.length + ' filas', dec(rows.reduce((s, f) => s + (f.dias || 0), 0)), dec(rows.reduce((s, f) => s + f.aprobados, 0)), dec(rows.reduce((s, f) => s + f.pendientes, 0)), '', '', '', ''] });
         est.grid.render(res);
       }
     }
@@ -182,7 +185,7 @@
         if (r.novedades.length !== Number(p.dias) && !window.confirm('Elegiste ' + r.novedades.length + ' días y el pedido dice ' + dec(p.dias) + '. ¿Generar igual? El control de integridad lo va a marcar.')) return;
         if (r.novedades.some(n => N.validar(N.normalizar(n)).length)) { msg('Alguna novedad no es válida: revisá código y cantidad del pedido.', 'mal'); return; }
         b.disabled = true;
-        const ins = await sb.from('rrhh_novedades').insert(r.novedades).select('id,vac_pedido'); if (ins.error) throw new Error(ins.error.message);
+        const ins = await sb.from('rrhh_novedades_carga').insert(r.novedades).select('id,vac_pedido'); if (ins.error) throw new Error(ins.error.message);
         est.novVac.push(...ins.data);
         try { await pasar(p, 'aprobado', { novedades_generadas_en: new Date().toISOString(), decidido_por: p.decidido_por || est.uid }); }
         catch (e) { msg('Se generaron las novedades pero no pude marcar el pedido: ' + e.message + '. No generes de nuevo: revisá en Novedades.', 'mal'); await cargar(); return; }

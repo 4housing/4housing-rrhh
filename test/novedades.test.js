@@ -3,15 +3,17 @@ const test = require('node:test'), assert = require('node:assert');
 const N = require('../js/rrhh-novedades.js');
 
 test('normalizar: mayúsculas, coma decimal y vacíos', () => {
-  const n = N.normalizar({ fecha: ' 2030-05-06 ', legajo: '901', codigo: ' hsenf ', cantidad: '7,5', valor: '', observaciones: '  ' });
-  assert.deepStrictEqual(n, { fecha: '2030-05-06', legajo: 901, codigo: 'HSENF', cantidad: 7.5, valor: 0, observaciones: null, origen: 'manual' });
+  const n = N.normalizar({ empresa: ' 4H ', fecha: ' 2030-05-06 ', legajo: '901', codigo: ' hsenf ', cantidad: '7,5', valor: '', observaciones: '  ' });
+  assert.deepStrictEqual(n, { empresa: '4H', fecha: '2030-05-06', legajo: 901, codigo: 'HSENF', cantidad: 7.5, valor: 0, observaciones: null, origen: 'manual' });
   assert.strictEqual(N.normalizar({ fecha: '2030-05-06', legajo: 1, codigo: 'X', cantidad: 1, origen: 'fichadas' }).origen, 'fichadas');
 });
 test('validar: casos válidos e inválidos', () => {
-  const ok = { fecha: '2030-05-06', legajo: 901, codigo: 'HSENF', cantidad: 8, valor: 0, observaciones: null };
+  const ok = { empresa: '4H_OC', fecha: '2030-05-06', legajo: 901, codigo: 'HSENF', cantidad: 8, valor: 0, observaciones: null };
   assert.deepStrictEqual(N.validar(ok), []);
   assert.deepStrictEqual(N.validar({ ...ok, cantidad: 0, valor: 1500 }), []);                 // adelanto: solo importe
   assert.ok(N.validar({ ...ok, cantidad: 0, valor: 0 }).length);                                // sin cantidad ni valor
+  assert.ok(N.validar({ ...ok, empresa: '' }).length);                                        // la empresa es obligatoria
+  assert.ok(N.validar({ ...ok, empresa: '5X' }).length);
   assert.ok(N.validar({ ...ok, fecha: '2030-13-45' }).length);
   assert.ok(N.validar({ ...ok, fecha: '' }).length);
   assert.ok(N.validar({ ...ok, legajo: NaN }).length);
@@ -22,9 +24,9 @@ test('validar: casos válidos e inválidos', () => {
   assert.ok(N.validar({ ...ok, observaciones: 'x'.repeat(201) }).length);
 });
 test('duplicada: mismo legajo, fecha y código', () => {
-  const a = { fecha: '2030-05-06', legajo: 901, codigo: 'HSENF' };
+  const a = { empresa: '4H', fecha: '2030-05-06', legajo: 901, codigo: 'HSENF' };
   assert.ok(N.duplicada(a, [{ ...a, cantidad: 3 }]));
-  assert.ok(!N.duplicada(a, [{ ...a, codigo: 'LICART' }, { ...a, legajo: 902 }, { ...a, fecha: '2030-05-07' }]));
+  assert.ok(!N.duplicada(a, [{ ...a, codigo: 'LICART' }, { ...a, legajo: 902 }, { ...a, empresa: '4H_OC' }, { ...a, fecha: '2030-05-07' }]));
 });
 test('serial: número de serie de Excel, sin depender de la zona horaria', () => {
   assert.strictEqual(N.serial('1900-03-01'), 61);

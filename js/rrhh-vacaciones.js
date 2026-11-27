@@ -15,9 +15,10 @@
   const fechaOk = s => /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(new Date(s + 'T12:00:00')) && new Date(s + 'T12:00:00').toISOString().slice(0, 10) === s;
   const medio = n => Math.abs(n * 2 - Math.round(n * 2)) < 1e-9;       // múltiplos de 0,5
 
-  function normalizarSaldo(s) { return { legajo: Number(s.legajo), anio: Number(s.anio), dias: num(s.dias), nota: s.nota == null ? null : (String(s.nota).trim() || null) }; }
+  function normalizarSaldo(s) { return { empresa: String(s.empresa || '').trim(), legajo: Number(s.legajo), anio: Number(s.anio), dias: num(s.dias), nota: s.nota == null ? null : (String(s.nota).trim() || null) }; }
   function validarSaldo(s) {
     const e = [];
+    if (s.empresa !== '4H' && s.empresa !== '4H_OC') e.push('Elegí la empresa.');
     if (!Number.isInteger(s.legajo) || s.legajo <= 0) e.push('El legajo tiene que ser un número.');
     if (!Number.isInteger(s.anio) || s.anio < 2000 || s.anio > 2100) e.push('El año no es válido.');
     if (!(s.dias >= 0) || s.dias > 366) e.push('Los días tienen que estar entre 0 y 366.'); else if (!medio(s.dias)) e.push('Los días se cargan de a medio día (0,5).');
@@ -26,11 +27,12 @@
   }
   function normalizarPedido(p) {
     const desde = String(p.desde || '').trim();
-    return { legajo: Number(p.legajo), anio: p.anio === '' || p.anio == null ? Number(desde.slice(0, 4)) : Number(p.anio), desde, hasta: String(p.hasta || '').trim(), dias: num(p.dias),
+    return { empresa: String(p.empresa || '').trim(), legajo: Number(p.legajo), anio: p.anio === '' || p.anio == null ? Number(desde.slice(0, 4)) : Number(p.anio), desde, hasta: String(p.hasta || '').trim(), dias: num(p.dias),
       codigo: String(p.codigo || '').trim().toUpperCase(), cantidad: num(p.cantidad), observaciones: p.observaciones == null ? null : (String(p.observaciones).trim() || null) };
   }
   function validarPedido(p) {
     const e = [];
+    if (p.empresa !== '4H' && p.empresa !== '4H_OC') e.push('Elegí la empresa.');
     if (!Number.isInteger(p.legajo) || p.legajo <= 0) e.push('El legajo tiene que ser un número.');
     if (!fechaOk(p.desde) || !fechaOk(p.hasta)) e.push('Las fechas no son válidas.'); else if (p.hasta < p.desde) e.push('«Hasta» no puede ser anterior a «Desde».');
     if (!Number.isInteger(p.anio) || p.anio < 2000 || p.anio > 2100) e.push('El año del saldo no es válido.');
@@ -59,7 +61,7 @@
     if (u.some(f => f < ped.desde || f > ped.hasta)) errores.push('Hay fechas fuera del período del pedido.');
     if (ped.estado !== 'aprobado') errores.push('El pedido tiene que estar aprobado.');
     if (ped.novedades_generadas_en) errores.push('Las novedades de este pedido ya se generaron.');
-    return { errores, novedades: errores.length ? [] : u.map(f => ({ fecha: f, legajo: ped.legajo, codigo: ped.codigo, cantidad: Number(ped.cantidad), valor: 0, observaciones: 'Vacaciones' + (ped.observaciones ? ' · ' + ped.observaciones : ''), origen: 'vacaciones', vac_pedido: ped.id })) };
+    return { errores, novedades: errores.length ? [] : u.map(f => ({ empresa: ped.empresa, fecha: f, legajo: ped.legajo, codigo: ped.codigo, cantidad: Number(ped.cantidad), valor: 0, observaciones: 'Vacaciones' + (ped.observaciones ? ' · ' + ped.observaciones : ''), origen: 'vacaciones', vac_pedido: ped.id })) };
   }
   /**
    * Saldo y control de integridad por legajo y año.
@@ -67,13 +69,13 @@
    *  control = avisos: sin saldo cargado, saldo negativo, aprobado sin novedades generadas, novedades que no coinciden con los días del pedido.
    */
   function resumen(saldos, pedidos, novedades) {
-    const m = new Map(), k = (l, a) => l + '|' + a;
-    const get = (l, a) => { const x = k(l, a); if (!m.has(x)) m.set(x, { legajo: l, anio: a, dias: null, nota: null, aprobados: 0, pendientes: 0, control: [] }); return m.get(x); };
-    for (const s of saldos) { const r = get(s.legajo, s.anio); r.dias = Number(s.dias); r.nota = s.nota || null; }
+    const m = new Map(), k = (e, l, a) => e + '|' + l + '|' + a;
+    const get = (e, l, a) => { const x = k(e, l, a); if (!m.has(x)) m.set(x, { empresa: e, legajo: l, anio: a, dias: null, nota: null, aprobados: 0, pendientes: 0, control: [] }); return m.get(x); };
+    for (const s of saldos) { const r = get(s.empresa, s.legajo, s.anio); r.dias = Number(s.dias); r.nota = s.nota || null; }
     const nPorPedido = new Map();
     for (const n of novedades || []) if (n.vac_pedido) nPorPedido.set(n.vac_pedido, (nPorPedido.get(n.vac_pedido) || 0) + 1);
     for (const p of pedidos) {
-      const r = get(p.legajo, p.anio);
+      const r = get(p.empresa, p.legajo, p.anio);
       if (p.estado === 'aprobado') {
         r.aprobados += Number(p.dias);
         if (!p.novedades_generadas_en) r.control.push('Aprobado sin novedades generadas (' + p.desde.split('-').reverse().join('/') + ')');
@@ -84,7 +86,7 @@
       const restante = r.dias == null ? null : r.dias - r.aprobados, control = r.control.slice();
       if (r.dias == null) control.unshift('Sin saldo cargado'); else if (restante < 0) control.unshift('Saldo negativo');
       return { ...r, restante, conPendientes: r.dias == null ? null : r.dias - r.aprobados - r.pendientes, control };
-    }).sort((a, b) => b.anio - a.anio || a.legajo - b.legajo);
+    }).sort((a, b) => b.anio - a.anio || a.empresa.localeCompare(b.empresa) || a.legajo - b.legajo);
   }
   return { ESTADOS, TRANSICIONES, puedePasar, normalizarSaldo, validarSaldo, normalizarPedido, validarPedido, rango, sugerirFechas, novedadesDePedido, resumen };
 });

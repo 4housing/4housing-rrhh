@@ -49,6 +49,12 @@ Marcadas **[verificado]** cuando coinciden con el informe de partes de Delta de 
 - **Control de integridad**: avisa saldo negativo, sin saldo cargado, aprobado sin novedades generadas y novedades distintas de los días del pedido.
 - Todavía **no** hay acceso para empleados ni jefes (etapa 3b).
 
+## 4 ter. Empresas y períodos
+- La app maneja **dos empresas**, con los códigos que ya usa el módulo: **4H** (4Commerce) y **4H OC** (4Commerce órdenes de compra). Delta se importa **por empresa**: cada novedad y cada pedido de vacaciones lleva su empresa, y el Excel para Delta sale de una empresa por vez.
+- En Novedades se filtra por empresa y por mes; por defecto se ve el **mes actual** (no los meses anteriores). Exportar pide elegir una empresa.
+- **No confundir** `rrhh_novedades` (las «Novedades registradas» que se importan de Delta por período y empresa, ya existían) con `rrhh_novedades_carga` (lo que se carga en la app para exportar).
+- Las fichadas hoy no tienen empresa (el `.txt` es de 4COMMERCE SRL); las novedades cargadas desde el panel de un día piden la empresa.
+
 ## 5. Pantallas
 - **Fichadas → Partes por día**: una fila por persona y día, con filtros por columna, orden, ancho ajustable y exportación a Excel. Clic en una fila abre el panel para corregir.
 - **Fichadas → Calendario**: personas × días. Verde = horas normales; naranja = «Aus. J.», «Enf.», «ART»; rojo = «Aus. Inj.»; azul = «Vac.»; gris = «Fer.»; amarillo «?» = fichada única. Debajo, en chico: extras en azul («+1,5 h 50 %») y horas de menos en rojo («−1 h»). Borde amarillo = necesita decisión; esquina marcada = modificado.
@@ -97,7 +103,16 @@ Cada una dice por qué importa. Marcá la respuesta y la fecha cuando se resuelv
 | 24 | **Códigos**: ¿VACJOR y VACM son por tipo de pago (jornalizado / mensualizado)? ¿Qué cantidad lleva cada día (8 y 7 en el histórico)? ¿Depende de la persona o del horario? | Es lo que se genera para Delta. | |
 | 25 | **Reglas del pedido**: anticipación mínima, máximo de personas del equipo a la vez, si se pueden partir en períodos, qué pasa si se cancela uno ya aprobado. | Sin esto los pedidos se aceptan sin control. | |
 
+### Empresas y liquidación por grupo (2026-11)
+| # | Duda | Por qué importa | Respuesta |
+|---|---|---|---|
+| 26 | **Empresas**: ¿4H es 4Commerce y 4H OC es 4Commerce órdenes de compra? (Lo supuse por los nombres que usaste.) | Si está al revés, se exportaría a la empresa equivocada. | |
+| 27 | **Personas en las dos empresas** (administración): ¿tienen el mismo legajo en ambas, o uno distinto en cada una? ¿Las fichadas y las vacaciones se cargan en una sola empresa o en las dos? | La app identifica a la persona por legajo; si repite, hay que cargar cada novedad en la empresa correcta. | |
+| 28 | **Operarios de 4H OC**: ¿ficha en el mismo reloj/`.txt`? ¿Sus novedades se importan en Delta de la empresa de órdenes de compra? | Hoy las fichadas no tienen empresa. | |
+| 29 | **Quincenas**: operarios se liquidan por quincena y administración por mes. ¿Querés filtrar y exportar las novedades por quincena además de por mes? (La 1ª quincena de noviembre de operarios ya se liquidó en 4H.) | Evita exportar de nuevo lo ya liquidado. | |
+
 ## 8. Registro de cambios del diccionario
 - 2026-11-27: primera versión (circuito, glosario, clasificación, reglas, pantallas, qué se guarda y 20 dudas pendientes). Novedades v1 publicada; las extras aprobadas quedaron afuera hasta resolver la duda 10.
 - 2026-11-27: vacaciones: decisiones tomadas (cada empleado entra; aprueba jefe y luego RRHH; cálculo de días a definir con RRHH) y preguntas 21 a 25.
 - 2026-11-27: vacaciones etapa 3a publicada en la rama (saldos y pedidos cargados por RRHH, control de integridad); los días los escribe RRHH hasta definir la regla de Tango.
+- 2026-11-27: empresas (4H / 4H OC) en novedades, saldos y pedidos de vacaciones; la tabla de novedades cargadas pasó a llamarse `rrhh_novedades_carga` para no pisar la de las novedades importadas; filtro por mes (por defecto el actual). Preguntas 26 a 29.

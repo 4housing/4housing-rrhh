@@ -5,26 +5,28 @@
 -- Qué hace
 --   · rrhh_vac_saldos: días de vacaciones que le corresponden a cada legajo en cada año (los escribe RRHH; la app no calcula nada).
 --   · rrhh_vac_pedidos: pedidos de vacaciones con su estado (pedido → aprobado por el jefe → aprobado por RRHH, o rechazado / cancelado).
---     Los días de cada pedido los escribe RRHH. Al aprobar, RRHH genera las novedades VACJOR / VACM en rrhh_novedades.
---   · Agrega a rrhh_novedades el origen 'vacaciones' y la referencia al pedido (para el control de integridad).
+--     Los días de cada pedido los escribe RRHH. Al aprobar, RRHH genera las novedades VACJOR / VACM en rrhh_novedades_carga.
+--   · Agrega a rrhh_novedades_carga el origen 'vacaciones' y la referencia al pedido (para el control de integridad).
 --   · NO guarda sueldos, C.U.I.L., teléfono ni correo.
 --
 -- Acceso: solo usuarios autenticados, con la compuerta de la sección «liquidacion» de RRHH. anon no tiene acceso.
--- Reversible: alter table public.rrhh_novedades drop column vac_pedido; drop table public.rrhh_vac_pedidos, public.rrhh_vac_saldos;
+-- Reversible: alter table public.rrhh_novedades_carga drop column vac_pedido; drop table public.rrhh_vac_pedidos, public.rrhh_vac_saldos;
 --             (y volver a crear el check de origen sin 'vacaciones')
 -- =====================================================================
 create table if not exists public.rrhh_vac_saldos (
+  empresa        text not null check (empresa in ('4H', '4H_OC')),
   legajo         integer not null check (legajo > 0),
   anio           integer not null check (anio between 2000 and 2100),
   dias           numeric not null check (dias >= 0 and dias <= 366),
   nota           text check (nota is null or length(nota) <= 200),
   actualizado_por uuid default auth.uid(),
   actualizado_en timestamptz not null default now(),
-  primary key (legajo, anio)
+  primary key (empresa, legajo, anio)
 );
 
 create table if not exists public.rrhh_vac_pedidos (
   id             uuid primary key default gen_random_uuid(),
+  empresa        text not null check (empresa in ('4H', '4H_OC')),
   legajo         integer not null check (legajo > 0),
   anio           integer not null check (anio between 2000 and 2100),      -- año del saldo del que se descuenta
   desde          date not null,
@@ -44,12 +46,12 @@ create table if not exists public.rrhh_vac_pedidos (
   novedades_generadas_en timestamptz,
   check (hasta >= desde)
 );
-create index if not exists rrhh_vac_pedidos_legajo_idx on public.rrhh_vac_pedidos (legajo, anio);
+create index if not exists rrhh_vac_pedidos_legajo_idx on public.rrhh_vac_pedidos (empresa, legajo, anio);
 
 -- Novedades: origen 'vacaciones' y referencia al pedido.
-alter table public.rrhh_novedades drop constraint if exists rrhh_novedades_origen_check;
-alter table public.rrhh_novedades add constraint rrhh_novedades_origen_check check (origen in ('manual', 'fichadas', 'vacaciones'));
-alter table public.rrhh_novedades add column if not exists vac_pedido uuid references public.rrhh_vac_pedidos (id) on delete set null;
+alter table public.rrhh_novedades_carga drop constraint if exists rrhh_novedades_carga_origen_check;
+alter table public.rrhh_novedades_carga add constraint rrhh_novedades_carga_origen_check check (origen in ('manual', 'fichadas', 'vacaciones'));
+alter table public.rrhh_novedades_carga add column if not exists vac_pedido uuid references public.rrhh_vac_pedidos (id) on delete set null;
 
 do $$
 declare t text;
