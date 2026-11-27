@@ -20,7 +20,9 @@
      · Coparticipación Operarios (55010) → se reparte entre proyectos según la base de la planilla COPAR (auxiliar Instructivo de fabricación).
      · Adelanto de coparticipación (55041) → préstamo al personal en dólares a la cotización indicada.
      · Redondeo (99999): acompaña a la línea de la persona que trae decimales.
-     · Sábado Taller, horas extra y feriados trabajados (55013/55014/55030/55551) de quienes no son de Neuquén → un asiento que se computa al PROYECTO indicado
+     · Sábado Taller (55013) de quienes no son de Neuquén → se JUSTIFICA con el informe «formato DATOS» de la app de planificación: cada sábado trabajado trae su
+       proyecto y su tarea; el importe de la persona se reparte en partes iguales entre sus sábados. Sin informe (o sin sábado planificado) y para horas extra y
+       feriados (55014/55030/55551) → un asiento que se computa al PROYECTO indicado
        (EERR «A) CMV VENTA», Instructivo = proyecto, Sueldos = «NO APLICA») con el MOTIVO de por qué se trabajaron. Más adelante el reparto por proyecto saldrá
        del informe de la app de planificación; por ahora va todo a un solo proyecto.
      · Todo lo demás NO se asienta: queda en «Sin destino» para que se vea.
@@ -99,6 +101,32 @@
     return [...s].sort();
   }
 
+  /** Informe «formato DATOS» de la app de planificación (CSV con «;» o columnas pegadas con tabulación; con o sin encabezado). Se usan solo posiciones:
+   *  0 Legajo · 3 Fecha (AAAA-MM-DD) · 4 Día · 6 Proyecto · 10 TAREAS · 11 Desc Tarea. */
+  function leerDatos(texto) {
+    const t = String(texto == null ? '' : texto).replace(/^\uFEFF/, '');
+    const sep = t.split(/\r?\n/, 1)[0].includes('\t') ? '\t' : ';';
+    const filas = []; let fila = [], cel = '', q = false;
+    for (let i = 0; i < t.length; i++) {
+      const c = t[i];
+      if (q) { if (c === '"') { if (t[i + 1] === '"') { cel += '"'; i++; } else q = false; } else cel += c; }
+      else if (c === '"') q = true;
+      else if (c === sep) { fila.push(cel); cel = ''; }
+      else if (c === '\n' || c === '\r') { if (c === '\r' && t[i + 1] === '\n') i++; fila.push(cel); cel = ''; if (fila.some(x => x !== '')) filas.push(fila); fila = []; }
+      else cel += c;
+    }
+    if (cel !== '' || fila.length) { fila.push(cel); if (fila.some(x => x !== '')) filas.push(fila); }
+    return filas.filter(f => /^\d+$/.test(limpio(f[0])) && /^\d{4}-\d{2}-\d{2}$/.test(limpio(f[3])))
+      .map(f => ({ legajo: limpio(f[0]), fecha: limpio(f[3]), dia: sinTildes(limpio(f[4])), proyecto: limpio(f[6]), tarea: limpio(f[10]), desc: limpio(f[11]) }));
+  }
+  const esProyecto = txt => /\d/.test(limpio(txt).split(' ')[0]);                       // «4417 VICUÑA», «PL0096 ANDY»; no «Mantenimiento», «Ausente»…
+  /** Auxiliar de Tango de un proyecto de la planificación: el que se configuró; si no, «4417 VICUÑA» → «IF4417 VICUÑA» (SUPUESTO: prefijo IF); «PL0096 ANDY» queda igual. */
+  function auxProyecto(txt, cfg) {
+    const m = cfg && cfg[txt]; if (m && m.cod) return { cod: m.cod, desc: m.desc || txt, supuesto: false };
+    const tok = txt.split(' ')[0];
+    return /^\d+$/.test(tok) ? { cod: 'IF' + tok, desc: 'IF' + txt, supuesto: true } : { cod: tok, desc: txt, supuesto: false };
+  }
+
   const CANDIDATOS_REDONDEO = ['socios', 'individual', 'copart', 'neuquen', 'vac', 'bonoAdm', 'bonoOpe', 'copeOpe', 'difcat', 'sab'];
   const PRIORIDAD_REDONDEO = ['bonoAdm', 'bonoOpe', 'vac', 'copeOpe', 'neuquen', 'difcat', 'sab', 'individual', 'socios', 'copart'];
   const tipoDe = nro => ({ 55303: 'socios', 55035: 'hogar', 55300: 'movilidad', 55302: 'movilidad', 55041: 'prestamo', 55050: 'rentalAlq', 55051: 'rentalSrv',
@@ -118,20 +146,26 @@
         const lg = o.legajos && o.legajos.get(k), c = cfg[k] || {};
         const base = c.asiento === 'ind' ? 'ind' : 'pool';
         const sector = c.sector || sectorDeDepto(lg && lg.depto);
-        pers.set(k, { clave: k, nombre: limpio(f.apellidos + ', ' + f.nombre), legajo: lg ? lg.legajo : f.legajo, depto: lg ? lg.depto : '', nombreLegajo: lg ? lg.nombre : '',
+        pers.set(k, { clave: k, nombre: limpio(f.apellidos + ', ' + f.nombre), legajo: lg ? lg.legajo : f.legajo, legajoInforme: f.legajo, depto: lg ? lg.depto : '', nombreLegajo: lg ? lg.nombre : '',
           sector, ind: base === 'ind', prestamo: c.prestamo || '', lineas: [], enPadron: !!lg });
       }
       pers.get(k).lineas.push(f);
     }
 
-    const D = { socios: 0, ind: new Map(), pool: [], hogar: 0, movilidad: 0, rentalAlq: 0, rentalSrv: 0, difcat: 0, neuquen: 0, indemn: 0, bonoAdm: 0, bonoOpe: 0, sab: 0,
+    const sabPorLegajo = new Map();                  // legajo → sábados trabajados con proyecto, según el informe de planificación
+    for (const r of o.datos || []) {
+      if (r.dia !== 'sabado' || !esProyecto(r.proyecto)) continue;
+      if (!sabPorLegajo.has(r.legajo)) sabPorLegajo.set(r.legajo, new Map());
+      if (!sabPorLegajo.get(r.legajo).has(r.fecha)) sabPorLegajo.get(r.legajo).set(r.fecha, r);
+    }
+    const D = { socios: 0, ind: new Map(), pool: [], hogar: 0, movilidad: 0, rentalAlq: 0, rentalSrv: 0, difcat: 0, neuquen: 0, indemn: 0, bonoAdm: 0, bonoOpe: 0, sab: 0, sabList: [],
       vac: [], prestamos: [], copeOpe: 0 };
     const sd = (p, l, motivo) => sinDestino.push({ persona: p.nombre, nro: l.nro, concepto: l.desc, importe: l.importe, motivo });
 
     for (const p of pers.values()) {
       const g = {};                                    // grupos de la persona por tipo
       const sumar = (t, imp) => { g[t] = (g[t] || 0) + imp; };
-      let redondeo = 0;
+      let redondeo = 0, sabParte = 0;
       const esNeu = p.lineas.some(l => l.nro === 55011);
       const sin0 = sinDestino.length;
       for (const l of p.lineas) {
@@ -144,6 +178,7 @@
           else if ([55301, 55304, 55305].includes(l.nro)) { if (p.ind) t = 'individual'; else { sd(p, l, 'Concepto de una persona sin asiento individual'); continue; } }
           else { sd(p, l, 'Sin regla de asiento todavía'); continue; }
         }
+        if (t === 'sab' && l.nro === 55013) sabParte += l.importe;
         sumar(t, l.importe);
       }
       // comisión rental: cada importe al múltiplo de $500 más cercano; consume parte del redondeo de la persona
@@ -172,6 +207,7 @@
         else if (t === 'copart') D.pool.push({ p, imp });
         else if (t === 'vac') D.vac.push({ p, imp });
         else if (t === 'prestamo') D.prestamos.push({ p, imp });
+        else if (t === 'sab') { D.sab += imp; D.sabList.push({ p, imp, sabado: Math.min(to2(sabParte), imp) }); }
         else D[t] += imp;
       }
       if (g.copart != null && !p.sector) avisos.push(p.nombre + ': sin departamento en LEGAJOS; su coparticipación queda en «SIN SECTOR». Asignale un sector en la tabla de personas.');
@@ -246,15 +282,40 @@
         aux(a, n, 'INSTR', [{ cod: cod || '', desc: proy || 'A DEFINIR', imp }]);
       }
     }
+    const sabados = [];                               // detalle para revisar: persona, fecha, proyecto, tarea, importe
+    const conPago = new Set(D.sabList.filter(e => e.sabado > 0.005).flatMap(e => [String(e.p.legajo), String(e.p.legajoInforme)]));
+    const sinPago = [...sabPorLegajo.entries()].filter(([l]) => !conPago.has(l));
+    if (sinPago.length) avisos.push('Sábados trabajados en la planificación SIN «Sábado Taller» en el informe: legajo ' + sinPago.map(([l, m]) => l + ' (' + m.size + ')').join(', ') + '.');
     if (Math.abs(D.sab) > 0.005) {
-      const proy = limpio(o.sabados && o.sabados.proyecto), motivo = limpio(o.sabados && o.sabados.motivo), cod = proy.split(' ')[0], imp = to2(D.sab);
-      if (!proy) avisos.push('Sábados, horas extra y feriados: falta indicar el proyecto al que se computan.');
-      if (!motivo) avisos.push('Sábados, horas extra y feriados: falta el motivo por el que se trabajaron.');
-      const a = nuevo('SABADOS, HS EXTRA Y FERIADOS ' + (proy || 'PROYECTO A DEFINIR') + ' ' + mesTxt, { observaciones: motivo });
-      const n = gasto(a, CUENTA.sueldos, imp, (motivo || 'Sábados / horas extra / feriados trabajados') + ' - ' + (proy || 'PROYECTO A DEFINIR') + ' ' + mesTxt);
-      aux(a, n, 'EERR', [{ cod: E.cmv.cod, desc: E.cmv.desc, imp }]);
-      aux(a, n, 'INSTR', [{ cod: cod || '', desc: proy || 'A DEFINIR', imp }]);
-      aux(a, n, 'SUELDOS', [{ cod: '10', desc: 'NO APLICA', imp }]);
+      const proyBase = limpio(o.sabados && o.sabados.proyecto), motivo = limpio(o.sabados && o.sabados.motivo);
+      const porProy = new Map(), tareas = new Map(), auxDe = new Map();
+      const cfgProy = (o.config && o.config.proyectos) || {};
+      const sumaProy = (proy0, imp, tarea) => { let proy = proy0; if (proy0 !== proyBase && proy0 !== 'PROYECTO A DEFINIR') { const x = auxProyecto(proy0, cfgProy); proy = x.desc; auxDe.set(proy, x); if (x.supuesto) avisos.push('Proyecto «' + proy0 + '»: se usó el auxiliar «' + x.desc + '» (se supone el prefijo IF); confirmalo en la tabla de proyectos.'); }
+        porProy.set(proy, to2((porProy.get(proy) || 0) + imp)); if (tarea) { if (!tareas.has(proy)) tareas.set(proy, new Set()); tareas.get(proy).add(tarea); } };
+      let resto = 0;
+      for (const e of D.sabList) {
+        const dias = e.sabado > 0.005 ? [...(sabPorLegajo.get(String(e.p.legajo)) || sabPorLegajo.get(String(e.p.legajoInforme)) || new Map()).values()] : [];
+        let rest = e.imp;
+        if (dias.length) {
+          const partes = repartir(e.sabado, dias.map(() => 1));
+          dias.forEach((d, i) => { sumaProy(d.proyecto, partes[i], d.tarea); sabados.push({ persona: e.p.nombre, legajo: e.p.legajo, fecha: d.fecha, proyecto: d.proyecto, tarea: d.tarea, importe: partes[i] }); });
+          rest = to2(e.imp - e.sabado);
+        } else if (e.sabado > 0.005 && (o.datos || []).length) avisos.push(e.p.nombre + ': sin sábado planificado con proyecto en el informe de planificación; su sábado va al proyecto indicado.');
+        if (Math.abs(rest) > 0.005) { resto = to2(resto + rest); sabados.push({ persona: e.p.nombre, legajo: e.p.legajo, fecha: '', proyecto: proyBase || 'A DEFINIR', tarea: 'Horas extra / feriados / sábado sin planificar', importe: rest }); }
+      }
+      if (Math.abs(resto) > 0.005) {
+        sumaProy(proyBase || 'PROYECTO A DEFINIR', resto);
+        if (!proyBase) avisos.push('Sábados, horas extra y feriados: falta indicar el proyecto al que se computa lo que no está en el informe de planificación.');
+        if (!motivo) avisos.push('Sábados, horas extra y feriados: falta el motivo por el que se trabajaron (lo que no está en el informe de planificación).');
+      }
+      const items = [...porProy.entries()].map(([proy, imp]) => ({ cod: auxDe.has(proy) ? auxDe.get(proy).cod : proy.split(' ')[0], desc: proy, imp }));
+      const total = to2(items.reduce((x, i) => x + i.imp, 0)), unico = items.length === 1 ? items[0].desc : '';
+      const obs = [motivo].concat(items.map(it => it.desc + ': ' + [...(tareas.get(it.desc) || [])].join('; '))).filter(x => x && !/: $/.test(x)).join(' | ');
+      const a = nuevo('SABADOS, HS EXTRA Y FERIADOS ' + (unico || 'VARIOS PROYECTOS') + ' ' + mesTxt, { observaciones: obs });
+      const n = gasto(a, CUENTA.sueldos, total, (motivo || 'Sábados trabajados según planificación') + ' - ' + (unico || 'varios proyectos') + ' ' + mesTxt);
+      aux(a, n, 'EERR', [{ cod: E.cmv.cod, desc: E.cmv.desc, imp: total }]);
+      aux(a, n, 'INSTR', items);
+      aux(a, n, 'SUELDOS', [{ cod: '10', desc: 'NO APLICA', imp: total }]);
     }
     if (Math.abs(D.copeOpe) > 0.005) {
       const a = nuevo('COMISION COPART OPERARIOS ' + mesTxt), total = to2(D.copeOpe), n = gasto(a, CUENTA.copart, total, a.concepto);
@@ -289,7 +350,8 @@
     }
     const personas = [...pers.values()].map(p => ({ clave: p.clave, nombre: p.nombre, legajo: p.legajo, depto: p.depto, sector: p.sector, ind: p.ind, prestamo: p.prestamo,
       tienePrestamo: p.lineas.some(l => l.nro === 55041), total: to2(p.lineas.reduce((s, l) => s + l.importe, 0)) }));
-    return { asientos, sinDestino, avisos: [...new Set(avisos)], control, personas };
+    const proyectosPlan = [...new Set([...sabPorLegajo.values()].flatMap(m => [...m.values()].map(r => r.proyecto)))].sort();
+    return { asientos, sinDestino, sabados, proyectosPlan, avisos: [...new Set(avisos)], control, personas };
   }
 
   /** Hojas para el Excel de salida (columnas como las del Excel de Tango). Identificador PROVISORIO: lo asigna Tango al importar/cargar. */
@@ -306,10 +368,11 @@
       if (a.moneda === 'DOL') C.push([id, 'DOL', 'COTIZACIÓN', a.cotizacion, 'No']);
       a.auxiliares.forEach(x => X.push([a.concepto, x.renglon, x.cuenta, x.tipo, x.cod, x.desc, x.pct, x.importe, x.importeUSD == null ? '' : x.importeUSD]));
     });
+    const Z = [['Persona', 'Legajo', 'Fecha', 'Proyecto', 'Tarea', 'Importe']].concat((res.sabados || []).map(x => [x.persona, x.legajo, x.fecha, x.proyecto, x.tarea, x.importe]));
     const S = [['Persona', 'Concepto', 'Nro.', 'Importe', 'Motivo']].concat(res.sinDestino.map(x => [x.persona, x.concepto, x.nro, x.importe, x.motivo]));
     const K = [['Control', 'Importe'], ['Total del informe', res.control.totalInforme], ['Gasto asentado', res.control.gastoNeto], ['Préstamos (adelantos descontados)', res.control.prestamos],
       ['Sin destino', res.control.sinDestino], ['Diferencia (debe ser 0)', res.control.diferencia]].concat(res.avisos.map(t => ['Aviso: ' + t, '']));
-    return { 'Asientos contables': A, 'Renglones': R, 'Cotizaciones': C, 'Auxiliares a cargar': X, 'Sin destino': S, 'Control': K };
+    return { 'Asientos contables': A, 'Renglones': R, 'Cotizaciones': C, 'Auxiliares a cargar': X, 'Sábados por proyecto': Z, 'Sin destino': S, 'Control': K };
   }
 
   /** Planilla COPAR (hoja «COPAR»): importe por proyecto de las columnas de mes elegidas. Agrupa por código (primer término del nombre). */
@@ -331,5 +394,5 @@
     return { meses: cols.map(c => c.ym), proyectos: [...por.values()] };
   }
 
-  return { generar, hojas, leerLegajos, leerResumen, periodos, leerCopar, porcentajes, repartir, clave, sectorDeDepto, SECTORES, CUENTA };
+  return { generar, hojas, leerDatos, auxProyecto, leerLegajos, leerResumen, periodos, leerCopar, porcentajes, repartir, clave, sectorDeDepto, SECTORES, CUENTA };
 });

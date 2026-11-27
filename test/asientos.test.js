@@ -138,7 +138,7 @@ test('persona fuera de LEGAJOS: avisa y no inventa el sector; con sector a mano 
 test('hojas de salida y planilla COPAR', () => {
   const res = A.generar({ filas: [fila('Alfa', 'Ana', 55303, 'Socios', 1000)], legajos: LEG, config: {}, periodo: '202610', fecha: '2026-10-31' });
   const h = A.hojas(res, { fecha: '2026-10-31' });
-  assert.deepEqual(Object.keys(h), ['Asientos contables', 'Renglones', 'Cotizaciones', 'Auxiliares a cargar', 'Sin destino', 'Control']);
+  assert.deepEqual(Object.keys(h), ['Asientos contables', 'Renglones', 'Cotizaciones', 'Auxiliares a cargar', 'Sábados por proyecto', 'Sin destino', 'Control']);
   assert.equal(h['Renglones'].length, 3);
   const aoa = [['PROYECTO', 'CONCEPTO', 'F. INICIO', 'TOTAL', new Date(2026, 8, 30), new Date(2026, 9, 31)],
     ['PL0001 ALFA', 'Contrato', null, 10, 40, 100], ['PL0001 ALFA - DESC.', 'Rev', null, 0, null, -10], ['IF0002 BETA', 'x', null, 5, null, 50], ['-', '-', null, 0, null, null]];
@@ -170,4 +170,50 @@ test('sábados, horas extra y feriados: un asiento al proyecto indicado con el m
   assert.deepEqual(ax('10'), [['10', 'NO APLICA', 100]]);
   assert.equal(suma(asi(res, 'COMISION COPART NEUQUEN'), '55000014', 'debe'), 1500);
   assert.equal(res.sinDestino.length, 0); assert.equal(res.control.diferencia, 0);
+});
+
+const CSV = '\uFEFF"Legajo";"Empleado";"Periodo";"Fecha";"Dia";"Ubicación";"Proyecto";"Lote";"Posventa/Montaje";"Modulo";"TAREAS";"Desc Tarea";"Otros";"Trámite";"Ausente";"Control (no pegar)"\r\n'
+  + '"3";"Gabi Gama";"202610";"2026-10-03";"sábado";"Huella 610";"9001 PROYECTO UNO";"";"Producción ";"";"Tareas de Herrería";"x · y (8h)";"";"";"";""\r\n'
+  + '"3";"Gabi Gama";"202610";"2026-10-10";"sábado";"Huella 610";"PL0002 PROYECTO DOS";"";"Producción ";"";"Ensamble de modulos";"x";"";"";"";""\r\n'
+  + '"3";"Gabi Gama";"202610";"2026-10-12";"lunes";"Huella 610";"9001 PROYECTO UNO";"";"Producción ";"";"Tareas de Herrería";"x";"";"";"";""\r\n'
+  + '"7";"Edu Eta";"202610";"2026-10-03";"sábado";"N/A";"Ausente";"";"Licencia";"";"Vacaciones";"Vacaciones";"";"";"";""\r\n'
+  + '"6";"Zoe Zeta";"202610";"2026-10-03";"sábado";"";"";"";"";"";"";"";"";"";"";""\r\n'
+  + '"5";"Eli Epsilon";"202610";"2026-10-17";"sábado";"Huella 610";"Mantenimiento";"";"Mantenimiento";"";"Mantenimiento";"x";"";"";"";""\r\n'
+  + '"4";"Dani Delta";"202610";"2026-10-24";"sábado";"Huella 610";"9001 PROYECTO UNO";"";"Producción ";"";"Tareas de Herrería";"x";"";"";"";""\r\n';
+
+test('leerDatos: CSV del informe de planificación (BOM, comillas, «;») y también columnas pegadas con tabulación', () => {
+  const r = A.leerDatos(CSV);
+  assert.equal(r.length, 7);
+  assert.deepEqual(r[0], { legajo: '3', fecha: '2026-10-03', dia: 'sabado', proyecto: '9001 PROYECTO UNO', tarea: 'Tareas de Herrería', desc: 'x · y (8h)' });
+  const tsv = '3\tGabi Gama\t202610\t2026-10-03\tsábado\tHuella 610\t9001 PROYECTO UNO\t\tProducción \t\tTareas de Herrería\tdesc\t\t\t';
+  assert.equal(A.leerDatos(tsv)[0].proyecto, '9001 PROYECTO UNO');
+  assert.deepEqual(A.leerDatos(''), []);
+});
+
+test('Sábado Taller se justifica con el informe de planificación: partes iguales entre los sábados con proyecto; el resto al proyecto indicado', () => {
+  const filas = [fila('Gama', 'Gabi', 55013, 'Sábado Taller', 1000), fila('Gama', 'Gabi', 55014, 'Hs extra 50%', 300),
+    fila('Eta', 'Edu', 55013, 'Sábado Taller', 400)];                     // Edu: solo ausente en la planificación → va al proyecto indicado
+  filas.forEach(f => { f.legajo = f.nombre === 'Gabi' ? 3 : 7; });
+  const datos = A.leerDatos(CSV);
+  const res = A.generar({ filas, legajos: LEG, config: {}, periodo: '202610', fecha: '2026-10-31', datos, sabados: { proyecto: 'IF0007 BASE', motivo: 'Cierre de obra' } });
+  const a = asi(res, 'SABADOS, HS EXTRA Y FERIADOS VARIOS PROYECTOS');
+  assert.equal(suma(a, '56000001', 'debe'), 1700);
+  const inst = a.auxiliares.filter(x => x.tipoCod === '03').map(x => [x.cod, x.desc, x.importe]);
+  assert.deepEqual(inst, [['IF9001', 'IF9001 PROYECTO UNO', 500], ['PL0002', 'PL0002 PROYECTO DOS', 500], ['IF0007', 'IF0007 BASE', 700]]);   // 9001 → IF9001 (supuesto)
+  assert.equal(Math.round(a.auxiliares.filter(x => x.tipoCod === '03').reduce((s, x) => s + x.pct, 0) * 100), 10000);
+  assert.deepEqual(res.sabados.slice(0, 2).map(x => [x.fecha, x.proyecto, x.importe]), [['2026-10-03', '9001 PROYECTO UNO', 500], ['2026-10-10', 'PL0002 PROYECTO DOS', 500]]);
+  assert.ok(res.avisos.some(t => t.includes('9001 PROYECTO UNO') && t.includes('IF9001 PROYECTO UNO')));
+  assert.ok(res.avisos.some(t => t.includes('Edu') || t.includes('Eta')));            // sin sábado planificado con proyecto
+  assert.ok(res.avisos.some(t => t.includes('SIN «Sábado Taller»') && t.includes('4 (1)') && !t.includes('5 (1)')));   // Dani sí; Eli (solo Mantenimiento) y Edu (ausente) no cuentan
+  assert.equal(res.control.diferencia, 0);
+  assert.deepEqual(res.proyectosPlan, ['9001 PROYECTO UNO', 'PL0002 PROYECTO DOS']);
+});
+
+test('equivalencia de proyecto configurada: manda sobre el prefijo supuesto', () => {
+  const filas = [fila('Gama', 'Gabi', 55013, 'Sábado Taller', 1000)]; filas[0].legajo = 3;
+  const res = A.generar({ filas, legajos: LEG, config: { proyectos: { '9001 PROYECTO UNO': { cod: 'XX9001', desc: 'XX9001 UNO' }, 'PL0002 PROYECTO DOS': { cod: 'PL0002', desc: 'PL0002 DOS' } } },
+    periodo: '202610', fecha: '2026-10-31', datos: A.leerDatos(CSV), sabados: { proyecto: 'IF0007 BASE', motivo: 'm' } });
+  const a = asi(res, 'SABADOS');
+  assert.deepEqual(a.auxiliares.filter(x => x.tipoCod === '03').map(x => [x.cod, x.desc]), [['XX9001', 'XX9001 UNO'], ['PL0002', 'PL0002 DOS']]);
+  assert.ok(!res.avisos.some(t => t.includes('se supone el prefijo')));
 });

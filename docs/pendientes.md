@@ -156,9 +156,16 @@ completo NO se versiona porque contiene valores de control de octubre.
 - **Verificado solo en local** con los Excel de agosto, septiembre y octubre de administración (no se prueba contra Tango real). Los asientos de agosto y septiembre
   coinciden con los cargados, salvo lo listado abajo.
 - **Abierto / a confirmar:**
-  - **Sábados, horas extra y feriados** (decisión de administración): deben informar el **motivo** por el que se trabajaron y computarse al **proyecto**. La app pide el
-    proyecto y el motivo y arma un asiento (EERR «A) CMV VENTA», Instructivo = proyecto, Sueldos = «NO APLICA»); los de Neuquén siguen en su asiento. Por ahora va todo a un
-    solo proyecto (octubre: IF4417 VICUÑA). A futuro el reparto por proyecto y el motivo saldrán del informe de la app de planificación.
+  - **Sábados** (decisión de administración): se justifican con el informe «Exportar para la planilla de M.O. (formato DATOS)» de la app de planificación (se sube el CSV;
+    también acepta las columnas A:O pegadas con tabulación). De cada sábado trabajado se toma el **proyecto** y la **tarea** (= motivo). El importe de «Sábado Taller» de la persona
+    se reparte **en partes iguales** entre sus sábados con proyecto (supuesto: el informe no trae horas ni importes por día). Todo sale en un asiento (EERR «A) CMV VENTA»,
+    Instructivo repartido por proyecto con porcentaje, Sueldos «NO APLICA») y hay una solapa «Sábados por proyecto» para revisar.
+  - **Horas extra y feriados**, y los sábados pagados sin sábado planificado con proyecto, van al proyecto y motivo que se indican en la pantalla (octubre: IF4417 VICUÑA).
+    Sigue abierto cómo justificarlos por día (el informe no distingue horas extra ni feriados trabajados).
+  - **Equivalencia de proyectos:** la planificación llama «4417 VICUÑA» a lo que en Tango es «IF4417 VICUÑA». Si no se configura, se SUPONE el prefijo IF para códigos numéricos
+    (el estado queda marcado como «Supuesto» en la tabla de proyectos, que se recuerda en el navegador). Falta confirmarlo y revisar los demás proyectos.
+  - **Controles que aparecen al cruzar ambos informes** (octubre): hay personas con «Sábado Taller» pagado sin sábado planificado con proyecto, y sábados planificados sin
+    «Sábado Taller» en el informe de efectivo. La app los avisa; falta que administración y planificación los revisen.
   - Neuquén: el asiento suma todos los conceptos de esas personas; en septiembre difiere de lo cargado porque se registró una rendición final con otro importe.
   - Bono Montaje de operarios: en septiembre lo cargado fue menor que lo liquidado; no se sabe a qué otro asiento fue el resto.
   - Coparticipación de operarios por proyecto: se asume el reparto proporcional a la columna del mes de COPAR (se pueden tildar varios meses). La planilla tiene
