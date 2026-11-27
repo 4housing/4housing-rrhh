@@ -310,7 +310,7 @@ test('Detalle: una fila por línea del informe con su destino, como la solapa To
   assert.ok(h.some(r => r[0] === 'SUELDOS' && r[4] === 1000));                                                                                       // total por destino
 });
 
-test('préstamo con el formato del asiento modelo: concepto y leyenda con etiqueta y cuota, auxiliar «46 - 09 Callero…» en dólares', () => {
+test('préstamo con el formato del asiento modelo: concepto y leyenda con etiqueta y cuota, auxiliar «<código> - <legajo> <apellido y nombre>» en dólares', () => {
   const lg = A.leerLegajos([{ 'Número': 9, 'Apellido y nombre': 'Delta, Dani', 'Descripción de departamento': 'GERENCIA ADMIN Y FINANZAS' }]);
   const filas = [fila('Delta', 'Dani', 55041, 'Adelanto', -1500000)]; filas[0].legajo = 9;
   const cfg = { personas: { 'delta dani': { prestamo: '46', prestamoEtiqueta: 'DAN DEPTO', prestamoCuota: '38' } } };

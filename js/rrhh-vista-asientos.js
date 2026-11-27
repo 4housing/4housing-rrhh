@@ -61,7 +61,7 @@
       </div>
       <div id="as-personas-box" hidden>
         <div class="card" style="max-width:none"><div class="card-h"><h3>3 · Personas</h3></div>
-          <div class="card-b"><p class="nota" style="margin-top:0">Quién va en un <b>asiento individual</b> (el resto va al asiento de coparticipación), el <b>sector</b> para el auxiliar de Sueldos (por defecto sale del departamento del padrón), si la persona está <b>fuera de la planificación de producción</b> (administrativos, Neuquén: sus días van al proyecto indicado sin aviso; «Automático» = no figura en el informe de planificación) y, de quien tenga adelanto, el <b>auxiliar de préstamos</b>, la <b>etiqueta</b> (p. ej. «ILE DEPTO») y el <b>número de cuota</b> que van en el concepto y la leyenda del asiento. La cotización del dólar es la de arriba (promedio del dólar blue del último día del mes). Se recuerda en este navegador.</p>
+          <div class="card-b"><p class="nota" style="margin-top:0">Quién va en un <b>asiento individual</b> (el resto va al asiento de coparticipación), el <b>sector</b> para el auxiliar de Sueldos (por defecto sale del departamento del padrón), si la persona está <b>fuera de la planificación de producción</b> (administrativos, Neuquén: sus días van al proyecto indicado sin aviso; «Automático» = no figura en el informe de planificación) y, de quien tenga adelanto, el <b>auxiliar de préstamos</b>, la <b>etiqueta</b> (p. ej. «ABC DEPTO») y el <b>número de cuota</b> que van en el concepto y la leyenda del asiento. La cotización del dólar es la de arriba (promedio del dólar blue del último día del mes). Se recuerda en este navegador.</p>
           <div id="as-personas"></div></div></div>
       </div>
       <div id="as-proy-box" hidden>
@@ -189,7 +189,7 @@
         { k: 'prestamoCfg', titulo: 'Auxiliar préstamos', cls: 'izq', texto: f => (f.tienePrestamo ? (f.prestamoCfg || '— falta —') : ''),
           html: f => (f.tienePrestamo ? '<input type="text" size="8" data-c="' + esc(f.clave) + '" data-k="prestamo" value="' + esc(f.prestamoCfg) + '" placeholder="código">' : '') },
         { k: 'petiqCfg', titulo: 'Etiqueta del préstamo', cls: 'izq', texto: f => (f.tienePrestamo ? (f.petiqCfg || '— apellido —') : ''),
-          html: f => (f.tienePrestamo ? '<input type="text" size="12" data-c="' + esc(f.clave) + '" data-k="petiq" value="' + esc(f.petiqCfg) + '" placeholder="p. ej. ILE DEPTO">' : '') },
+          html: f => (f.tienePrestamo ? '<input type="text" size="12" data-c="' + esc(f.clave) + '" data-k="petiq" value="' + esc(f.petiqCfg) + '" placeholder="p. ej. ABC DEPTO">' : '') },
         { k: 'pcuotaCfg', titulo: 'Cuota', cls: 'izq', texto: f => (f.tienePrestamo ? (f.pcuotaCfg || '— falta —') : ''),
           html: f => (f.tienePrestamo ? '<input type="text" size="4" data-c="' + esc(f.clave) + '" data-k="pcuota" value="' + esc(f.pcuotaCfg) + '">' : '') },
       ];

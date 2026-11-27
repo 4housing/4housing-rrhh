@@ -389,7 +389,7 @@
     for (const { p, imp } of D.prestamos) {
       if (!o.cotizacion) { p.sinCot = true; sinDestino.push({ persona: p.nombre, nro: 55041, concepto: 'Adelanto de coparticipación', importe: imp, motivo: 'Falta la cotización del dólar' }); continue; }
       const usd = to2(Math.abs(imp) / o.cotizacion), ape = p.nombre.split(',')[0].toUpperCase(), etiqueta = p.prestamoEtiqueta || ape;
-      // formato del asiento modelo de Tango: concepto «PRESTAMO ILE DEPTO 202609», leyenda «09 - PRESTAMO ILE DEPTO 202609 Cuota 37», auxiliar «46 - 09 Callero, Ileana Soledad» en dólares
+      // formato del asiento modelo de Tango: concepto «PRESTAMO <etiqueta> AAAAMM», leyenda «<legajo> - PRESTAMO <etiqueta> AAAAMM Cuota N», auxiliar «<código> - <legajo> <apellido y nombre>» en dólares
       const a = nuevo('PRESTAMO ' + etiqueta + ' ' + mesTxt, { moneda: 'DOL', cotizacion: o.cotizacion }), ley = pad2(p.legajo) + ' - ' + a.concepto + (p.prestamoCuota ? ' Cuota ' + p.prestamoCuota : '');
       const cobro = imp < 0;                                  // descuento al empleado: baja el préstamo (haber) y entra a caja (debe)
       const n = reng(a, CUENTA.prestamos, cobro ? 0 : usd, cobro ? usd : 0, ley);
