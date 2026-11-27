@@ -1,5 +1,6 @@
 /* ==========================================================================
-   RRHH · pantalla «Asientos»: genera los asientos contables de sueldos (para cargar en Tango) desde el «Resumen de conceptos liquidados».
+   RRHH · pantalla «Asientos»: genera los asientos contables de los ADICIONALES PAGADOS EN EFECTIVO (para cargar en Tango) desde el «Resumen de conceptos liquidados».
+   No es la liquidación formal por sueldos (esa se transfiere por banco y se controla contra el F.931): es un informe adicional y distinto.
    Se monta con RRHHVistaAsientos.montar({ $main, esc, PERM, XLSX, Asientos, Tabla, titulo }).
    TODO se procesa en el navegador: los Excel no se suben ni se guardan en ningún lado (no hay SQL ni llamadas a la base).
    Solo se recuerda en este navegador (localStorage) la configuración por persona: asiento individual, sector y auxiliar de préstamos.
@@ -21,7 +22,7 @@
 
   async function montar(ctx) {
     const { $main, esc, PERM, XLSX, Asientos, Tabla, titulo } = ctx;
-    titulo('Asientos', 'Asientos contables de sueldos para cargar en Tango, desde el resumen de conceptos liquidados');
+    titulo('Asientos', 'Asientos contables de los adicionales pagados en efectivo, para cargar en Tango');
     if (!PERM.ver.has('liquidacion')) { $main.innerHTML = '<div class="empty">Para generar asientos hace falta permiso de <b>Ver</b> en «Liquidación». Pedíselo a dirección en el portal.</div>'; return; }
 
     const est = { resumen: null, hojasRes: [], hojaRes: '', legajos: null, copar: null, cfg: leerCfg(), res: null, personas: [], vista: 'asientos', grid: null, columnas: [] };
@@ -47,6 +48,10 @@
             <label>Fecha del asiento<input type="date" id="as-fecha"></label>
             <label>Cotización del dólar (préstamos)<input type="number" id="as-cot" step="0.01" min="0" placeholder="p. ej. 1550"></label>
             <label>Proyecto del Bono Montaje<input type="text" id="as-bono" placeholder="p. ej. PL0030 VDP"></label>
+          </div>
+          <div class="barra">
+            <label>Proyecto de sábados, horas extra y feriados<input type="text" id="as-sab-proy" placeholder="p. ej. IF4417 VICUÑA"></label>
+            <label>Motivo por el que se trabajaron<input type="text" id="as-sab-motivo" size="46" placeholder="p. ej. Entrega adelantada del proyecto"></label>
           </div>
           <div class="barra" id="as-meses-box" hidden><fieldset class="bonos-sel"><legend>Meses de la planilla COPAR para repartir la coparticipación de operarios entre proyectos</legend><span id="as-meses"></span></fieldset></div>
           <button class="btn" id="as-generar" type="button">Generar asientos</button>
@@ -136,7 +141,7 @@
       const meses = [...document.querySelectorAll('.as-mes:checked')].map(x => Number(x.value));
       const copar = est.copar && meses.length ? Asientos.leerCopar(est.copar, meses).proyectos : [];
       return { filas, legajos: est.legajos, config: { personas: est.cfg }, periodo: String(periodo), fecha: $('as-fecha').value,
-        cotizacion: Number($('as-cot').value) || null, bono: { proyecto: $('as-bono').value }, copar };
+        cotizacion: Number($('as-cot').value) || null, bono: { proyecto: $('as-bono').value }, sabados: { proyecto: $('as-sab-proy').value, motivo: $('as-sab-motivo').value }, copar };
     }
     function calcular() { est.res = Asientos.generar(entrada()); }
 

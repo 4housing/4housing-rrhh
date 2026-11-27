@@ -141,7 +141,9 @@ completo NO se versiona porque contiene valores de control de octubre.
   un **+** agrega otro proyecto con su importe, y la suma tiene que coincidir con lo liquidado. Requiere tablas nuevas (SQL aparte).
 - Etapa siguiente (faltan archivos): ajuste de fichadas (salida sin fichar, aprobar horas extra) y Excel de salida para importar novedades en Tango.
 
-## Asientos contables de sueldos (2026-11) — primera versión
+## Asientos contables de los adicionales en efectivo (2026-11) — primera versión
+- **Alcance (aclarado por administración):** esta solapa es para el informe de lo que se paga **adicional y en efectivo** (caja en pesos). Es **distinto** de la liquidación
+  formal por sueldos (la que se transfiere por banco y se controla contra el F.931, que es lo que ya hace el resto de la app).
 - Nueva solapa **Asientos** (`js/rrhh-asientos.js` = lógica pura probada en `test/asientos.test.js`; `js/rrhh-vista-asientos.js` = pantalla). Se sube en el navegador el
   «Resumen de conceptos liquidados», el padrón (solapa LEGAJOS) y, si hay coparticipación de operarios, la planilla COPAR. **No hay SQL ni se guarda nada en la base**;
   solo se recuerda en el navegador (localStorage) la configuración por persona. Del padrón se descartan C.U.I.L., teléfono y correo al leer.
@@ -154,8 +156,9 @@ completo NO se versiona porque contiene valores de control de octubre.
 - **Verificado solo en local** con los Excel de agosto, septiembre y octubre de administración (no se prueba contra Tango real). Los asientos de agosto y septiembre
   coinciden con los cargados, salvo lo listado abajo.
 - **Abierto / a confirmar:**
-  - «Sábado Taller», horas extras y feriados de operarios que no son de Neuquén **no tienen regla** y quedan en «Sin destino» (en agosto explican casi toda la diferencia
-    entre el informe y lo asentado). Falta decidir su tratamiento.
+  - **Sábados, horas extra y feriados** (decisión de administración): deben informar el **motivo** por el que se trabajaron y computarse al **proyecto**. La app pide el
+    proyecto y el motivo y arma un asiento (EERR «A) CMV VENTA», Instructivo = proyecto, Sueldos = «NO APLICA»); los de Neuquén siguen en su asiento. Por ahora va todo a un
+    solo proyecto (octubre: IF4417 VICUÑA). A futuro el reparto por proyecto y el motivo saldrán del informe de la app de planificación.
   - Neuquén: el asiento suma todos los conceptos de esas personas; en septiembre difiere de lo cargado porque se registró una rendición final con otro importe.
   - Bono Montaje de operarios: en septiembre lo cargado fue menor que lo liquidado; no se sabe a qué otro asiento fue el resto.
   - Coparticipación de operarios por proyecto: se asume el reparto proporcional a la columna del mes de COPAR (se pueden tildar varios meses). La planilla tiene

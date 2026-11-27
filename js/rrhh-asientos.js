@@ -1,5 +1,6 @@
 /* ==========================================================================
-   RRHH · asientos contables de sueldos (Tango) a partir del «Resumen de conceptos liquidados».
+   RRHH · asientos contables de los ADICIONALES PAGADOS EN EFECTIVO (Tango, caja en pesos) a partir del «Resumen de conceptos liquidados».
+   No es la liquidación formal por sueldos (la que sale por banco y se controla contra el F.931): es un informe adicional y distinto.
    Lógica PURA (sin DOM, sin red): recibe filas del informe + padrón de legajos + configuración y devuelve los asientos
    (con sus renglones y los auxiliares a cargar), lo que quedó sin destino y un control contra el total del informe.
    Probada con datos sintéticos en test/asientos.test.js.
@@ -19,7 +20,10 @@
      · Coparticipación Operarios (55010) → se reparte entre proyectos según la base de la planilla COPAR (auxiliar Instructivo de fabricación).
      · Adelanto de coparticipación (55041) → préstamo al personal en dólares a la cotización indicada.
      · Redondeo (99999): acompaña a la línea de la persona que trae decimales.
-     · Todo lo demás (p. ej. Sábado Taller de operarios que no son de Neuquén) NO se asienta: queda en «Sin destino» para que se vea.
+     · Sábado Taller, horas extra y feriados trabajados (55013/55014/55030/55551) de quienes no son de Neuquén → un asiento que se computa al PROYECTO indicado
+       (EERR «A) CMV VENTA», Instructivo = proyecto, Sueldos = «NO APLICA») con el MOTIVO de por qué se trabajaron. Más adelante el reparto por proyecto saldrá
+       del informe de la app de planificación; por ahora va todo a un solo proyecto.
+     · Todo lo demás NO se asienta: queda en «Sin destino» para que se vea.
    ========================================================================== */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -95,14 +99,14 @@
     return [...s].sort();
   }
 
-  const CANDIDATOS_REDONDEO = ['socios', 'individual', 'copart', 'neuquen', 'vac', 'bonoAdm', 'bonoOpe', 'copeOpe', 'difcat'];
-  const PRIORIDAD_REDONDEO = ['bonoAdm', 'bonoOpe', 'vac', 'copeOpe', 'neuquen', 'difcat', 'individual', 'socios', 'copart'];
+  const CANDIDATOS_REDONDEO = ['socios', 'individual', 'copart', 'neuquen', 'vac', 'bonoAdm', 'bonoOpe', 'copeOpe', 'difcat', 'sab'];
+  const PRIORIDAD_REDONDEO = ['bonoAdm', 'bonoOpe', 'vac', 'copeOpe', 'neuquen', 'difcat', 'sab', 'individual', 'socios', 'copart'];
   const tipoDe = nro => ({ 55303: 'socios', 55035: 'hogar', 55300: 'movilidad', 55302: 'movilidad', 55041: 'prestamo', 55050: 'rentalAlq', 55051: 'rentalSrv',
-    55200: 'vac', 55015: 'bonoAdm', 55016: 'bonoAdm', 55025: 'bonoOpe', 55010: 'copeOpe', 55500: 'indemn', 55012: 'difcat', 55550: 'difcat' }[nro] || null);
+    55200: 'vac', 55015: 'bonoAdm', 55016: 'bonoAdm', 55025: 'bonoOpe', 55010: 'copeOpe', 55500: 'indemn', 55012: 'difcat', 55550: 'difcat', 55013: 'sab', 55014: 'sab', 55030: 'sab', 55551: 'sab' }[nro] || null);
 
   /**
    * o: { filas: leerResumen(...), legajos: Map, config: { personas: { [clave]: { asiento:'pool'|'ind', sector?:'06', prestamo?:'46' } } },
-   *      periodo:'AAAAMM', fecha:'AAAA-MM-DD', cotizacion?:number, bono?:{ proyecto:'PL0030 VDP' }, copar?:[{ codigo, nombre, importe }] }
+   *      periodo:'AAAAMM', fecha:'AAAA-MM-DD', cotizacion?:number, bono?:{ proyecto:'PL0030 VDP' }, sabados?:{ proyecto:'IF4417 VICUÑA', motivo:'…' }, copar?:[{ codigo, nombre, importe }] }
    */
   function generar(o) {
     const cfg = (o.config && o.config.personas) || {};
@@ -120,7 +124,7 @@
       pers.get(k).lineas.push(f);
     }
 
-    const D = { socios: 0, ind: new Map(), pool: [], hogar: 0, movilidad: 0, rentalAlq: 0, rentalSrv: 0, difcat: 0, neuquen: 0, indemn: 0, bonoAdm: 0, bonoOpe: 0,
+    const D = { socios: 0, ind: new Map(), pool: [], hogar: 0, movilidad: 0, rentalAlq: 0, rentalSrv: 0, difcat: 0, neuquen: 0, indemn: 0, bonoAdm: 0, bonoOpe: 0, sab: 0,
       vac: [], prestamos: [], copeOpe: 0 };
     const sd = (p, l, motivo) => sinDestino.push({ persona: p.nombre, nro: l.nro, concepto: l.desc, importe: l.importe, motivo });
 
@@ -133,6 +137,7 @@
       for (const l of p.lineas) {
         if (l.nro === 99999) { redondeo += l.importe; continue; }
         let t = tipoDe(l.nro);
+        if (esNeu && t === 'sab') t = 'neuquen';                    // el sábado/hs extra de Neuquén va en su asiento
         if (!t) {
           if (esNeu) t = 'neuquen';
           else if (l.nro === 55000) t = p.ind ? 'individual' : 'copart';
@@ -240,6 +245,16 @@
         aux(a, n, 'EERR', [{ cod: E.cmv.cod, desc: E.cmv.desc, imp }]);
         aux(a, n, 'INSTR', [{ cod: cod || '', desc: proy || 'A DEFINIR', imp }]);
       }
+    }
+    if (Math.abs(D.sab) > 0.005) {
+      const proy = limpio(o.sabados && o.sabados.proyecto), motivo = limpio(o.sabados && o.sabados.motivo), cod = proy.split(' ')[0], imp = to2(D.sab);
+      if (!proy) avisos.push('Sábados, horas extra y feriados: falta indicar el proyecto al que se computan.');
+      if (!motivo) avisos.push('Sábados, horas extra y feriados: falta el motivo por el que se trabajaron.');
+      const a = nuevo('SABADOS, HS EXTRA Y FERIADOS ' + (proy || 'PROYECTO A DEFINIR') + ' ' + mesTxt, { observaciones: motivo });
+      const n = gasto(a, CUENTA.sueldos, imp, (motivo || 'Sábados / horas extra / feriados trabajados') + ' - ' + (proy || 'PROYECTO A DEFINIR') + ' ' + mesTxt);
+      aux(a, n, 'EERR', [{ cod: E.cmv.cod, desc: E.cmv.desc, imp }]);
+      aux(a, n, 'INSTR', [{ cod: cod || '', desc: proy || 'A DEFINIR', imp }]);
+      aux(a, n, 'SUELDOS', [{ cod: '10', desc: 'NO APLICA', imp }]);
     }
     if (Math.abs(D.copeOpe) > 0.005) {
       const a = nuevo('COMISION COPART OPERARIOS ' + mesTxt), total = to2(D.copeOpe), n = gasto(a, CUENTA.copart, total, a.concepto);

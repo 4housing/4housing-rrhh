@@ -75,7 +75,7 @@ test('comisión rental: cada importe al múltiplo de 500 consumiendo el redondeo
 test('Neuquén: un asiento con todo lo de esas personas contra Remuneraciones a pagar; la gratificación final a Indemnizaciones', () => {
   const filas = [fila('Zeta', 'Zoe', 55011, 'Copar Neuquén', 700000.5), fila('Zeta', 'Zoe', 55013, 'Sábado', 50000.25), fila('Zeta', 'Zoe', 99999, 'Redondeo', 0.25),
     fila('Eta', 'Edu', 55011, 'Copar Neuquén', 900), fila('Eta', 'Edu', 55500, 'Grat. final', 500),
-    fila('Gama', 'Gabi', 55013, 'Sábado', 120000)];                    // operario que no es de Neuquén
+    fila('Gama', 'Gabi', 55998, 'Concepto sin regla', 120000)];        // concepto que todavía no tiene asiento
   const res = A.generar({ filas, legajos: LEG, config: {}, periodo: '202609', fecha: '2026-09-30' });
   const a = asi(res, 'COMISION COPART NEUQUEN');
   assert.equal(res.asientos.filter(x => x.concepto.includes('NEUQUEN')).length, 1);
@@ -83,7 +83,7 @@ test('Neuquén: un asiento con todo lo de esas personas contra Remuneraciones a 
   assert.equal(suma(a, '56000008', 'debe'), 500);
   assert.equal(suma(a, '21400001', 'haber'), 750001 + 900 + 500);
   assert.ok(a.auxiliares.every(x => x.tipoCod !== '10' || x.cod === '20'));
-  assert.equal(res.sinDestino.length, 1);                               // el Sábado del no-Neuquén queda a la vista
+  assert.equal(res.sinDestino.length, 1);                               // lo que no tiene regla queda a la vista
   assert.equal(res.sinDestino[0].importe, 120000);
   assert.equal(res.control.diferencia, 0);
 });
@@ -147,9 +147,27 @@ test('hojas de salida y planilla COPAR', () => {
 });
 
 test('el redondeo de una persona con un concepto sin destino con decimales queda junto a ese concepto (no engorda la coparticipación)', () => {
-  const filas = [fila('Delta', 'Dani', 55000, 'Copart', 1000000), fila('Delta', 'Dani', 55013, 'Sábado Taller', 544000.37), fila('Delta', 'Dani', 99999, 'Redondeo', 0.63)];
+  const filas = [fila('Delta', 'Dani', 55000, 'Copart', 800000), fila('Delta', 'Dani', 55998, 'Concepto sin regla', 300000.37), fila('Delta', 'Dani', 99999, 'Redondeo', 0.63)];
   const res = A.generar({ filas, legajos: LEG, config: {}, periodo: '202610', fecha: '2026-10-31' });
-  assert.equal(suma(asi(res, 'COMISION COPART ADM'), '55000014', 'debe'), 1000000);
-  assert.deepEqual(res.sinDestino.map(x => x.concepto).sort(), ['Redondeo', 'Sábado Taller']);
+  assert.equal(suma(asi(res, 'COMISION COPART ADM'), '55000014', 'debe'), 800000);
+  assert.deepEqual(res.sinDestino.map(x => x.concepto).sort(), ['Concepto sin regla', 'Redondeo']);
   assert.equal(res.control.diferencia, 0);
+});
+
+test('sábados, horas extra y feriados: un asiento al proyecto indicado con el motivo; los de Neuquén siguen en el asiento de Neuquén', () => {
+  const filas = [fila('Gama', 'Gabi', 55013, 'Sábado Taller', 100000.4), fila('Gama', 'Gabi', 55014, 'Hs extra 50%', 20000.2), fila('Gama', 'Gabi', 99999, 'Redondeo', 0.4),
+    fila('Delta', 'Dani', 55030, 'Feriado', 30000), fila('Zeta', 'Zoe', 55011, 'Copar Neuquén', 1000), fila('Zeta', 'Zoe', 55013, 'Sábado', 500)];
+  const sin = A.generar({ filas, legajos: LEG, config: {}, periodo: '202610', fecha: '2026-10-31' });
+  assert.ok(sin.avisos.some(t => t.includes('falta indicar el proyecto')) && sin.avisos.some(t => t.includes('falta el motivo')));
+  const res = A.generar({ filas, legajos: LEG, config: {}, periodo: '202610', fecha: '2026-10-31', sabados: { proyecto: 'IF0001 PROYECTO UNO', motivo: 'Entrega adelantada' } });
+  const a = asi(res, 'SABADOS, HS EXTRA Y FERIADOS IF0001 PROYECTO UNO');
+  assert.equal(suma(a, '56000001', 'debe'), 100000.4 + 20000.2 + 0.4 + 30000);
+  assert.equal(a.observaciones, 'Entrega adelantada');
+  assert.ok(a.renglones[0].leyenda.startsWith('Entrega adelantada'));
+  const ax = t => a.auxiliares.filter(x => x.tipoCod === t).map(x => [x.cod, x.desc, x.pct]);
+  assert.deepEqual(ax('02'), [['02', 'A) CMV VENTA', 100]]);
+  assert.deepEqual(ax('03'), [['IF0001', 'IF0001 PROYECTO UNO', 100]]);
+  assert.deepEqual(ax('10'), [['10', 'NO APLICA', 100]]);
+  assert.equal(suma(asi(res, 'COMISION COPART NEUQUEN'), '55000014', 'debe'), 1500);
+  assert.equal(res.sinDestino.length, 0); assert.equal(res.control.diferencia, 0);
 });
