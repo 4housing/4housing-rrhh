@@ -21,7 +21,7 @@ Documento vivo: se actualiza cada vez que cambia algo. Sin datos de personas ni 
 | **Tolerancia** | Minutos de margen al inicio y al fin de un tramo. |
 | **Unidad** | Con qué granularidad se pagan las extras: 30 min (se redondea al múltiplo más cercano, la mitad hacia arriba) o 1 min (exactos). Se define por legajo. |
 | **Fuera de horario** | Llegar antes del inicio. **No** es hora extra y no se paga; queda registrado. |
-| **Hora extra aprobada** | Minutos de extra al 50 % / 100 % que RRHH aprobó **para ese día y esa persona**. Se aprueba por día; también hay aprobación en bloque, que solo toma los días sin otras anormalidades. |
+| **Hora extra aprobada** | Minutos de extra al 50 % / 100 % que RRHH aprobó **para ese día y esa persona**. Se decide en la solapa *Aprobar extras*: día por día, o varios a la vez tildando (por persona, por semana o lo que se vea filtrado). Se puede aprobar solo una parte de un día (ej. 1 h de 2) desde el panel del día. |
 | **Novedad** | Un renglón para Delta: fecha, legajo, código (ej. HSENF = enfermedad, LICART = licencia por ART, VACJOR / VACM = vacaciones), cantidad, valor, observaciones. |
 | **Modificado** | Marca amarilla: alguien cambió algo a mano (fichada agregada o anulada, extra aprobada distinta de la calculada). Al pasar el cursor se ve qué había antes, qué cambió, quién y cuándo. |
 
@@ -57,6 +57,7 @@ Marcadas **[verificado]** cuando coinciden con el informe de partes de Delta de 
 
 ## 5. Pantallas
 - **Fichadas → Partes por día**: una fila por persona y día, con filtros por columna, orden, ancho ajustable y exportación a Excel. Clic en una fila abre el panel para corregir.
+- **Fichadas → Aprobar extras**: una fila por día con horas extra (semana de lunes a domingo, persona, fichadas, extras calculadas y aprobadas, otras alertas). Botones **Aprobar** / **No aprobar** por fila (y **Deshacer**), casilla para tildar varios y «Aprobar los tildados». «Tildar los visibles» respeta los filtros de la tabla (persona, semana, fecha); «sin otras alertas» deja afuera los días con ausencia, fichada única, llegada tarde, salida temprana o feriado. «No aprobar» deja registrado que se vio y no se paga.
 - **Fichadas → Calendario**: personas × días. Verde = horas normales; naranja = «Aus. J.», «Enf.», «ART»; rojo = «Aus. Inj.»; azul = «Vac.»; gris = «Fer.»; amarillo «?» = fichada única. Debajo, en chico: extras en azul («+1,5 h 50 %») y horas de menos en rojo («−1 h»). Borde amarillo = necesita decisión; esquina marcada = modificado.
 - **Fichadas → Resumen del período**: por persona (días, horas, extras aprobadas, ausencias, llegadas tarde); fila amarilla = algo llamativo.
 - **Vacaciones**: solapa *Pedidos* (carga, aprobación del jefe y de RRHH, generación de novedades VACJOR / VACM) y solapa *Saldos y control* (días que corresponden, aprobados, restantes y control de integridad).
@@ -116,3 +117,4 @@ Cada una dice por qué importa. Marcá la respuesta y la fecha cuando se resuelv
 - 2026-11-27: vacaciones: decisiones tomadas (cada empleado entra; aprueba jefe y luego RRHH; cálculo de días a definir con RRHH) y preguntas 21 a 25.
 - 2026-11-27: vacaciones etapa 3a publicada en la rama (saldos y pedidos cargados por RRHH, control de integridad); los días los escribe RRHH hasta definir la regla de Tango.
 - 2026-11-27: empresas (4H / 4H OC) en novedades, saldos y pedidos de vacaciones; la tabla de novedades cargadas pasó a llamarse `rrhh_novedades_carga` para no pisar la de las novedades importadas; filtro por mes (por defecto el actual). Preguntas 26 a 29.
+- 2026-11-28: aprobación de extras rediseñada: solapa *Aprobar extras* (día por día o varios tildados, por persona o semana); se quitó el botón de aprobación en bloque y el de «Aprobar sus extras» del Resumen (se veía cortado).
