@@ -268,6 +268,8 @@
       const cols = [
         { k: 'sel', titulo: '', cls: 'izq', min: 40, anchoMin: 40, texto: p => (est.sel.has(p.id) ? 'tildado' : ''), valor: p => (est.sel.has(p.id) ? 0 : 1),
           html: p => '<input type="checkbox" data-sel="' + esc(p.id) + '"' + (est.sel.has(p.id) ? ' checked' : '') + (puedeEditar ? '' : ' disabled') + ' aria-label="Tildar este día">' },
+        { k: 'acc', titulo: '', cls: 'izq', min: 190, anchoMin: 200, texto: () => '', html: p => (!puedeEditar ? '' : p.revisado ? '<button type="button" class="btn-mini" data-ex="des" data-id="' + esc(p.id) + '">Deshacer</button>'
+          : '<button type="button" class="btn-mini" data-ex="ap" data-id="' + esc(p.id) + '">Aprobar</button> <button type="button" class="btn-mini" data-ex="no" data-id="' + esc(p.id) + '">No aprobar</button>') },
         { k: 'semana', titulo: 'Semana', cls: 'izq', min: 100, texto: p => p.semana, valor: p => p.semanaK },
         { k: 'persona', titulo: 'Persona', cls: 'izq', min: 190 },
         { k: 'fecha', titulo: 'Fecha', cls: 'izq', min: 100, texto: p => p.dia + ' ' + p.fecha.split('-').reverse().join('/'), valor: p => p.fecha },
@@ -276,13 +278,11 @@
         Object.assign(num('a50', p => (p.revisado ? p.aprob50 || 0 : 0)), { titulo: 'Aprobada\n50 % (h)', texto: p => (p.revisado ? horasTxt(p.aprob50 || 0) || '0' : '') }),
         Object.assign(num('a100', p => (p.revisado ? p.aprob100 || 0 : 0)), { titulo: 'Aprobada\n100 % (h)', texto: p => (p.revisado ? horasTxt(p.aprob100 || 0) || '0' : '') }),
         { k: 'estadoExtra', titulo: 'Estado', cls: 'izq', min: 120 },
-        { k: 'alerta', titulo: 'Otras alertas', cls: 'izq', min: 200 },
-        { k: 'acc', titulo: '', cls: 'izq', min: 190, anchoMin: 200, texto: () => '', html: p => (!puedeEditar ? '' : p.revisado ? '<button type="button" class="btn-mini" data-ex="des" data-id="' + esc(p.id) + '">Deshacer</button>'
-          : '<button type="button" class="btn-mini" data-ex="ap" data-id="' + esc(p.id) + '">Aprobar</button> <button type="button" class="btn-mini" data-ex="no" data-id="' + esc(p.id) + '">No aprobar</button>') }];
+        { k: 'alerta', titulo: 'Otras alertas', cls: 'izq', min: 200 }];
       est.columnas = cols.filter(c => c.titulo);
       est.gridEx = Tabla.crear({ el: $('fi-tabla'), id: 'fichadas-extras-v1', columnas: cols, esc, filaAttrs: p => 'data-pk="' + esc(p.id) + '" style="cursor:pointer' + (p.revisado ? '' : p.alerta ? ';background:#fbf6e6' : ';background:#eef6fb') + '"',
-        pie: rows => ['', '', 'TOTAL · ' + rows.length + ' días', '', '', horasTxt(rows.reduce((n, p) => n + (p.pagado['EXTRA 50%'] || 0), 0)), horasTxt(rows.reduce((n, p) => n + (p.pagado['EXTRA 100%'] || 0), 0)),
-          horasTxt(rows.reduce((n, p) => n + (p.revisado ? p.aprob50 || 0 : 0), 0)), horasTxt(rows.reduce((n, p) => n + (p.revisado ? p.aprob100 || 0 : 0), 0)), '', '', ''] });
+        pie: rows => ['', '', '', 'TOTAL · ' + rows.length + ' días', '', '', horasTxt(rows.reduce((n, p) => n + (p.pagado['EXTRA 50%'] || 0), 0)), horasTxt(rows.reduce((n, p) => n + (p.pagado['EXTRA 100%'] || 0), 0)),
+          horasTxt(rows.reduce((n, p) => n + (p.revisado ? p.aprob50 || 0 : 0), 0)), horasTxt(rows.reduce((n, p) => n + (p.revisado ? p.aprob100 || 0 : 0), 0)), '', ''] });
       est.gridEx.render(filasExtras()); barraExtras();
       $('fi-nota').innerHTML = '<b>Cómo se aprueba:</b> cada fila es un día de una persona con horas extra. <b>Aprobar</b> / <b>No aprobar</b> decide ese día. Para varios a la vez: filtrá por persona o por semana (▾ en el título), tildá los días y usá «Aprobar los tildados». '
         + 'Para aprobar <b>solo una parte</b> de un día (por ejemplo 1 h de 2), tocá la fila: se abre el día y ahí escribís los minutos. Fondo celeste = solo extras; amarillo = además tiene otra alerta (mirala antes de aprobar). «No aprobar» deja registrado que se vio y no se paga; «Deshacer» lo vuelve a pendiente.';
