@@ -37,7 +37,7 @@
     const puedeEditar = PERM.editar.has('liquidacion');
     const hoy = new Date(), mesHoy = hoy.getFullYear() + '-' + pad(hoy.getMonth() + 1);
     const est = { mes: mesHoy, q: hoy.getDate() <= 15 ? '1' : '2', fichadas: [], novGuard: [], legajos: new Map(), horarios: new Map(), feriados: new Set(), nombres: new Map(), perfiles: new Map(), dias: new Map(), just: new Map(),
-      partes: [], filtro: 'decision', vista: 'partes', limExtras: (() => { try { return Number(localStorage.getItem('rrhh-fichadas-extras-altas')) || 30; } catch (e) { return 30; } })(), abierto: null, sel: new Set(), extFiltro: 'pend', gridEx: null, lectura: null, uid: null, grid: null, gridRes: null, resumen: [] };
+      partes: [], filtro: 'decision', vista: 'partes', limExtras: (() => { try { return Number(localStorage.getItem('rrhh-fichadas-extras-altas')) || 30; } catch (e) { return 30; } })(), abierto: null, sel: new Set(), extFiltro: 'pend', extSemana: 'todas', gridEx: null, lectura: null, uid: null, grid: null, gridRes: null, resumen: [] };
 
     $main.innerHTML = `
       <div class="card" id="fi-carga">
@@ -232,7 +232,7 @@
     const estadoExtra = p => (!p.revisado ? 'Pendiente' : apMin(p) === 0 ? 'No aprobada' : apMin(p) < calcMin(p) ? 'Aprobada parcial' : 'Aprobada');
     const ALERTAS = OTRAS.concat('revisar_feriado');
     const alertaTxt = p => p.marcas.filter(m => ALERTAS.includes(m)).map(m => (m === 'ausente' && p.justificacion ? 'Ausente — ' + p.justificacion : MARCAS[m] || m)).join(' · ');
-    const filasExtras = () => est.partes.filter(tieneExtras).filter(p => est.extFiltro === 'todas' || (est.extFiltro === 'pend' ? !p.revisado : p.revisado))
+    const filasExtras = () => est.partes.filter(tieneExtras).filter(p => est.extFiltro === 'todas' || (est.extFiltro === 'pend' ? !p.revisado : p.revisado)).filter(p => est.extSemana === 'todas' || lunesDe(p.fecha) === est.extSemana)
       .map(p => ({ ...p, semana: semanaTxt(p.fecha), semanaK: lunesDe(p.fecha), estadoExtra: estadoExtra(p), alerta: alertaTxt(p) }));
     async function decidirExtras(dias, modo) {
       if (!dias.length) return;
@@ -255,39 +255,43 @@
     const selDias = () => est.partes.filter(p => est.sel.has(p.id));
     function barraExtras() {
       const vis = est.gridEx ? est.gridEx.filtradas() : [], sel = selDias(), selMin = sel.reduce((n, p) => n + calcMin(p), 0), pend = vis.filter(p => !p.revisado);
-      $('fi-extrabar').innerHTML = '<label>Mostrar<select id="fx-filtro"><option value="pend">Pendientes de decidir</option><option value="hechas">Ya decididas</option><option value="todas">Todas</option></select></label>'
+      const sems = [...new Set(est.partes.filter(tieneExtras).map(p => lunesDe(p.fecha)))].sort();
+      $('fi-extrabar').innerHTML = '<label>Mostrar<select id="fx-filtro"><option value="pend">Pendientes</option><option value="hechas">Ya decididas</option><option value="todas">Todas</option></select></label>'
+        + '<label>Semana<select id="fx-semana"><option value="todas">Todas</option>' + sems.map(l => '<option value="' + l + '">' + semanaTxt(l) + '</option>').join('') + '</select></label>'
         + '<button type="button" class="btn sec" data-fx="vis" title="Tilda los días que están a la vista (respeta los filtros de la tabla: persona, semana, fecha…)">Tildar los ' + vis.length + ' visibles</button>'
         + '<button type="button" class="btn sec" data-fx="visok" title="Tilda los visibles que solo tienen extras, sin ausencia, fichada única, llegada tarde, salida temprana ni feriado">Tildar los visibles sin otras alertas</button>'
         + '<button type="button" class="btn sec" data-fx="nada"' + (sel.length ? '' : ' disabled') + '>Destildar todo</button><span class="sp"></span>'
         + (puedeEditar ? '<button type="button" class="btn" data-fx="ap"' + (sel.length ? '' : ' disabled') + '>Aprobar los tildados (' + sel.length + (sel.length ? ' · ' + horasTxt(selMin) + ' h' : '') + ')</button>'
           + '<button type="button" class="btn sec" data-fx="no"' + (sel.length ? '' : ' disabled') + '>No aprobar los tildados</button>' : '');
-      $('fx-filtro').value = est.extFiltro; void pend;
+      $('fx-filtro').value = est.extFiltro; $('fx-semana').value = est.extSemana; void pend;
     }
+    /** «Almeida, Carlos Ismael» → «Almeida, Car.» (apellido + 3 letras del nombre: distingue a dos personas con el mismo apellido). El nombre completo va en el cursor. */
+    const nombreCorto = n => { const m = /^([^,]+),\s*(\S+)/.exec(n || ''); return m ? m[1].trim() + ', ' + (m[2].length > 3 ? m[2].slice(0, 3) + '.' : m[2]) : (n || ''); };
+    const fechaCorta = p => p.dia + ' ' + p.fecha.split('-').reverse().slice(0, 2).join('/');
     function pintarExtras() {
-      const num = (k, f) => ({ k, tipo: 'n', texto: p => horasTxt(f(p)), valor: f });
+      const num = (k, f, t) => ({ k, tipo: 'n', titulo: t, min: 70, fijo: true, texto: p => horasTxt(f(p)), valor: f });
+      const btn = (a, t, id) => '<button type="button" class="btn-mini" style="padding:3px 7px;font-size:11.5px" data-ex="' + a + '" data-id="' + esc(id) + '">' + t + '</button>';
       const cols = [
-        { k: 'sel', titulo: '', cls: 'izq', min: 40, anchoMin: 40, texto: p => (est.sel.has(p.id) ? 'tildado' : ''), valor: p => (est.sel.has(p.id) ? 0 : 1),
+        { k: 'sel', titulo: '', cls: 'izq', min: 34, fijo: true, sticky: true, texto: p => (est.sel.has(p.id) ? 'tildado' : ''), valor: p => (est.sel.has(p.id) ? 0 : 1),
           html: p => '<input type="checkbox" data-sel="' + esc(p.id) + '"' + (est.sel.has(p.id) ? ' checked' : '') + (puedeEditar ? '' : ' disabled') + ' aria-label="Tildar este día">' },
-        { k: 'acc', titulo: '', cls: 'izq', min: 190, anchoMin: 200, texto: () => '', html: p => (!puedeEditar ? '' : p.revisado ? '<button type="button" class="btn-mini" data-ex="des" data-id="' + esc(p.id) + '">Deshacer</button>'
-          : '<button type="button" class="btn-mini" data-ex="ap" data-id="' + esc(p.id) + '">Aprobar</button> <button type="button" class="btn-mini" data-ex="no" data-id="' + esc(p.id) + '">No aprobar</button>') },
-        { k: 'semana', titulo: 'Semana', cls: 'izq', min: 100, texto: p => p.semana, valor: p => p.semanaK },
-        { k: 'persona', titulo: 'Persona', cls: 'izq', min: 190 },
-        { k: 'fecha', titulo: 'Fecha', cls: 'izq', min: 100, texto: p => p.dia + ' ' + p.fecha.split('-').reverse().join('/'), valor: p => p.fecha },
-        { k: 'horas', titulo: 'Fichadas', cls: 'izq', min: 130, texto: p => (p.horas || []).join(' · '), valor: p => (p.horas || []).join(' ') },
-        Object.assign(num('c50', p => p.pagado['EXTRA 50%'] || 0), { titulo: 'Calculada\n50 % (h)' }), Object.assign(num('c100', p => p.pagado['EXTRA 100%'] || 0), { titulo: 'Calculada\n100 % (h)' }),
-        Object.assign(num('a50', p => (p.revisado ? p.aprob50 || 0 : 0)), { titulo: 'Aprobada\n50 % (h)', texto: p => (p.revisado ? horasTxt(p.aprob50 || 0) || '0' : '') }),
-        Object.assign(num('a100', p => (p.revisado ? p.aprob100 || 0 : 0)), { titulo: 'Aprobada\n100 % (h)', texto: p => (p.revisado ? horasTxt(p.aprob100 || 0) || '0' : '') }),
-        { k: 'estadoExtra', titulo: 'Estado', cls: 'izq', min: 120 },
-        { k: 'alerta', titulo: 'Otras alertas', cls: 'izq', min: 200 }];
+        { k: 'persona', titulo: 'Persona', cls: 'izq', min: 112, fijo: true, sticky: true, texto: p => nombreCorto(p.persona), valor: p => p.persona,
+          html: p => '<span title="' + attr(p.legajo + ' · ' + p.persona) + '">' + esc(nombreCorto(p.persona)) + '</span>' },
+        { k: 'acc', titulo: '', cls: 'izq', min: 158, fijo: true, texto: () => '', html: p => (!puedeEditar ? '' : p.revisado ? btn('des', 'Deshacer', p.id) : btn('ap', 'Aprobar', p.id) + ' ' + btn('no', 'No aprobar', p.id)) },
+        { k: 'fecha', titulo: 'Día', cls: 'izq', min: 70, fijo: true, texto: fechaCorta, valor: p => p.fecha },
+        { k: 'horas', titulo: 'Fich.', cls: 'izq', min: 82, fijo: true, texto: p => (p.horas || []).join('·'), valor: p => (p.horas || []).join(' ') },
+        num('c50', p => p.pagado['EXTRA 50%'] || 0, 'Calc.\n50%'), num('c100', p => p.pagado['EXTRA 100%'] || 0, 'Calc.\n100%'),
+        { k: 'ap', titulo: 'Aprob.\n50/100', tipo: 'n', min: 76, fijo: true, texto: p => (p.revisado ? (horasTxt(p.aprob50 || 0) || '0') + ' / ' + (horasTxt(p.aprob100 || 0) || '0') : ''), valor: p => (p.revisado ? apMin(p) : 0) },
+        { k: 'estadoExtra', titulo: 'Estado', cls: 'izq', min: 84, fijo: true },
+        { k: 'alerta', titulo: '⚠', cls: 'izq', min: 34, fijo: true, texto: p => p.alerta || 'sin alertas', html: p => (p.alerta ? '<span title="' + attr(p.alerta) + '">⚠</span>' : '') }];
       est.columnas = cols.filter(c => c.titulo);
-      est.gridEx = Tabla.crear({ el: $('fi-tabla'), id: 'fichadas-extras-v1', columnas: cols, esc, filaAttrs: p => 'data-pk="' + esc(p.id) + '" style="cursor:pointer' + (p.revisado ? '' : p.alerta ? ';background:#fbf6e6' : ';background:#eef6fb') + '"',
-        pie: rows => ['', '', '', 'TOTAL · ' + rows.length + ' días', '', '', horasTxt(rows.reduce((n, p) => n + (p.pagado['EXTRA 50%'] || 0), 0)), horasTxt(rows.reduce((n, p) => n + (p.pagado['EXTRA 100%'] || 0), 0)),
-          horasTxt(rows.reduce((n, p) => n + (p.revisado ? p.aprob50 || 0 : 0), 0)), horasTxt(rows.reduce((n, p) => n + (p.revisado ? p.aprob100 || 0 : 0), 0)), '', ''] });
+      est.gridEx = Tabla.crear({ el: $('fi-tabla'), id: 'fichadas-extras-v3', compacta: true, columnas: cols, esc, filaAttrs: p => 'data-pk="' + esc(p.id) + '" style="cursor:pointer' + (p.revisado ? '' : p.alerta ? ';background:#fbf6e6' : ';background:#eef6fb') + '"',
+        pie: rows => ['', 'TOTAL · ' + rows.length, '', '', '', horasTxt(rows.reduce((n, p) => n + (p.pagado['EXTRA 50%'] || 0), 0)), horasTxt(rows.reduce((n, p) => n + (p.pagado['EXTRA 100%'] || 0), 0)),
+          horasTxt(rows.reduce((n, p) => n + (p.revisado ? apMin(p) : 0), 0)), '', ''] });
       est.gridEx.render(filasExtras()); barraExtras();
-      $('fi-nota').innerHTML = '<b>Cómo se aprueba:</b> cada fila es un día de una persona con horas extra. <b>Aprobar</b> / <b>No aprobar</b> decide ese día. Para varios a la vez: filtrá por persona o por semana (▾ en el título), tildá los días y usá «Aprobar los tildados». '
+      $('fi-nota').innerHTML = '<b>Cómo se aprueba:</b> cada fila es un día de una persona con horas extra (en horas; «Calc.» = calculado por la app, «Aprob.» = aprobado, 50 % / 100 %). Pasá el cursor por el nombre para ver el nombre completo y el legajo; ⚠ = tiene otra alerta (ver con el cursor). <b>Aprobar</b> / <b>No aprobar</b> decide ese día. Para varios a la vez: filtrá por persona o por semana (▾ en el título), tildá los días y usá «Aprobar los tildados». '
         + 'Para aprobar <b>solo una parte</b> de un día (por ejemplo 1 h de 2), tocá la fila: se abre el día y ahí escribís los minutos. Fondo celeste = solo extras; amarillo = además tiene otra alerta (mirala antes de aprobar). «No aprobar» deja registrado que se vio y no se paga; «Deshacer» lo vuelve a pendiente.';
     }
-    $('fi-extrabar').addEventListener('change', ev => { if (ev.target.id === 'fx-filtro') { est.extFiltro = ev.target.value; if (est.vista === 'extras' && est.gridEx) { est.gridEx.render(filasExtras()); barraExtras(); } } });
+    $('fi-extrabar').addEventListener('change', ev => { if (ev.target.id === 'fx-filtro' || ev.target.id === 'fx-semana') { if (ev.target.id === 'fx-filtro') est.extFiltro = ev.target.value; else est.extSemana = ev.target.value; if (est.vista === 'extras' && est.gridEx) { est.gridEx.render(filasExtras()); barraExtras(); } } });
     $('fi-extrabar').addEventListener('click', ev => {
       const b = ev.target.closest('button[data-fx]'); if (!b || !est.gridEx) return;
       const vis = est.gridEx.filtradas(), k = b.dataset.fx;

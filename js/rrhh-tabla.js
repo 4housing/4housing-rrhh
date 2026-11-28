@@ -6,8 +6,8 @@
      · autoajuste de todas las columnas la primera vez y con el botón «Ajustar columnas»
      · los anchos se recuerdan por tabla en este navegador (localStorage, opcional: si no se puede, se sigue sin recordar)
      · contador «N de M filas» y «Limpiar filtros»; el total (pie) se recalcula sobre lo que queda filtrado
-   Cada columna: { k, titulo, grupo?, tipo:'txt'|'n'|'p', cls?, sticky?, min?, anchoMin?, valor(f)?, texto(f)?, html(f)? }
-     anchoMin = ancho que el autoajuste nunca achica (columnas de botones o casillas: su texto es vacío y no se puede medir)
+   Cada columna: { k, titulo, grupo?, tipo:'txt'|'n'|'p', cls?, sticky?, min?, anchoMin?, fijo?, valor(f)?, texto(f)?, html(f)? }
+     fijo = el autoajuste usa siempre `min` (ni achica ni agranda). anchoMin = ancho que el autoajuste nunca achica (columnas de botones o casillas: su texto es vacío y no se puede medir)
      valor  = lo que se usa para ordenar · texto = lo que se muestra y se usa en el filtro · html = lo que se pinta
    La parte lógica (ordenar/filtrar) no toca el DOM y se prueba aparte (test/tabla.test.js).
    ========================================================================== */
@@ -82,6 +82,7 @@
       cx.font = fuente; return Math.ceil(cx.measureText(texto).width) + extra;
     }
     function autoAncho(c, filas) {
+      if (c.fijo) return c.min || ANCHO_MIN;                 // columnas de botones, casillas o íconos: ancho fijo, no se miden por su texto
       const th = $el.querySelector('th[data-k="' + c.k + '"]'), td = $el.querySelector('tbody td');
       const cs = td ? getComputedStyle(td) : null, ch = th ? getComputedStyle(th) : null;
       const fam = (cs && cs.fontFamily) || 'sans-serif', tam = (cs && cs.fontSize) || '12.5px';
@@ -154,7 +155,7 @@
       if (opts.pie) { const p = opts.pie(fs); est.pieTextos = {}; cols.forEach((c, i) => { est.pieTextos[c.k] = String(p[i] == null ? '' : p[i]).replace(/<[^>]*>/g, ''); }); pie = '<tfoot>' + filaHtml(p, 'tot') + '</tfoot>'; }
       const anchoTabla = cols.reduce((s, c) => s + ancho(c), 0);
       $el.innerHTML = barra + (fs.length
-        ? '<div class="tblwrap"><table class="tbl fija" style="width:' + anchoTabla + 'px"><colgroup>' + cols.map(c => '<col style="width:' + ancho(c) + 'px">').join('') + '</colgroup>' + cabecera() + '<tbody>' + body + '</tbody>' + pie + '</table></div>'
+        ? '<div class="tblwrap"><table class="tbl fija' + (opts.compacta ? ' compacta' : '') + '" style="width:' + anchoTabla + 'px"><colgroup>' + cols.map(c => '<col style="width:' + ancho(c) + 'px">').join('') + '</colgroup>' + cabecera() + '<tbody>' + body + '</tbody>' + pie + '</table></div>'
         : '<div class="empty">' + esc(opts.vacio || 'No hay filas que coincidan con el filtro.') + '</div>');
       if (!est.ajustado && fs.length) { est.ajustado = true; ajustarTodas(); }
     }
