@@ -98,7 +98,7 @@ Cada una dice por qué importa. Marcá la respuesta y la fecha cuando se resuelv
 ### Vacaciones (etapa 3): preguntas abiertas
 | # | Duda | Por qué importa | Respuesta |
 |---|---|---|---|
-| 21 | **Usuarios**: ¿todo el personal tiene cuenta Microsoft de la empresa (la que usa el portal)? Si no, ¿con qué entrarían? | El portal hoy solo entra con Microsoft. Sin cuenta no hay acceso propio. | |
+| 21 | **Usuarios**: ¿todo el personal tiene cuenta Microsoft de la empresa (la que usa el portal)? Si no, ¿con qué entrarían? | El portal hoy solo entra con Microsoft. Sin cuenta no hay acceso propio. | **Resuelta (2026-11-28):** entran todos los que estén dados de alta hoy con cuenta Microsoft de la empresa. Ver su saldo, su fecha de ingreso, sus días por año y su historial. Falta verificar que cada activo tenga cuenta. |
 | 22 | **Jefes**: ¿quién es jefe de quién? ¿Un jefe aprueba solo a su equipo directo? ¿Y si el jefe está de vacaciones? | Define a quién le llega cada pedido. | |
 | 23 | **Cálculo de días**: regla exacta (antigüedad, ingreso en el año, días corridos o hábiles, sábados, feriados dentro del período). | La app no va a deducirlo; un error afecta el pago. | |
 | 24 | **Códigos**: ¿VACJOR y VACM son por tipo de pago (jornalizado / mensualizado)? ¿Qué cantidad lleva cada día (8 y 7 en el histórico)? ¿Depende de la persona o del horario? | Es lo que se genera para Delta. | |
@@ -112,9 +112,25 @@ Cada una dice por qué importa. Marcá la respuesta y la fecha cuando se resuelv
 | 28 | **Operarios de 4H OC**: ¿ficha en el mismo reloj/`.txt`? ¿Sus novedades se importan en Delta de la empresa de órdenes de compra? | Hoy las fichadas no tienen empresa. | |
 | 29 | **Quincenas**: operarios se liquidan por quincena y administración por mes. ¿Querés filtrar y exportar las novedades por quincena además de por mes? (La 1ª quincena de noviembre de operarios ya se liquidó en 4H.) | Evita exportar de nuevo lo ya liquidado. | |
 
+### Vacaciones: días por antigüedad e historial (2026-11-28)
+| # | Duda | Por qué importa | Respuesta |
+|---|---|---|---|
+| 30 | **Escala de días por año**: ¿qué tabla aplican (por antigüedad, convenio) y cómo cuentan el primer año o los períodos incompletos? | La app va a calcular los días que corresponden; la regla la define RRHH. No la cargo de memoria. | |
+| 31 | **Antigüedad reconocida**: cuando alguien ingresó, se fue y volvió y se le reconoce la antigüedad, ¿cómo se carga y de qué fecha se cuenta? ¿Un reingreso con antigüedad reconocida usa la fecha original o una fecha «equivalente»? | Cambia los días que le corresponden. RRHH lo cargará en la app. | |
+| 32 | **Fecha de ingreso**: ¿de dónde sale (informe de Delta, planilla)? ¿Incluye bajas y reingresos? | Hoy el padrón de la app no tiene fecha de ingreso. | |
+| 33 | **Historial**: ¿desde qué año querés el registro histórico de vacaciones? ¿Se arma desde las novedades VACJOR / VACM ya importadas? | Evita volver a cargar el pasado. | |
+| 34 | **Qué ve cada empleado**: saldo, fecha de ingreso, días por año, proyectadas, tomadas, descontadas. ¿Algo más (y nada de importes ni datos de otras personas)? | Define la pantalla y lo que se expone. | |
+
+### Feriados trabajados (2026-11-28)
+| # | Duda | Por qué importa | Respuesta |
+|---|---|---|---|
+| 35 | **Horas trabajadas en un feriado después de las 14:00**: el horario de feriados de los operarios tiene un solo tramo (07:00 a 14:00, al 100 %, 7 h). Quien lo cubre cobra las 7 h completas, trabaje hasta las 14:22 o hasta las 16:45; lo que pasa de las 14:00 no tiene tramo y la app no lo paga (queda como «Fuera de horario», ej. 2 h 53 min). ¿Esas horas se pagan? ¿A qué porcentaje (50 % / 100 %)? ¿Es igual para todos los horarios, o solo operarios? ¿Y si entran antes de las 07:00? | Hoy todos aparecen con 7,00 h al 100 % aunque las salidas sean muy distintas. Si Delta las paga, la app está pagando de menos. Relacionada con la 1. | |
+
 ## 8. Registro de cambios del diccionario
 - 2026-11-27: primera versión (circuito, glosario, clasificación, reglas, pantallas, qué se guarda y 20 dudas pendientes). Novedades v1 publicada; las extras aprobadas quedaron afuera hasta resolver la duda 10.
 - 2026-11-27: vacaciones: decisiones tomadas (cada empleado entra; aprueba jefe y luego RRHH; cálculo de días a definir con RRHH) y preguntas 21 a 25.
 - 2026-11-27: vacaciones etapa 3a publicada en la rama (saldos y pedidos cargados por RRHH, control de integridad); los días los escribe RRHH hasta definir la regla de Tango.
 - 2026-11-27: empresas (4H / 4H OC) en novedades, saldos y pedidos de vacaciones; la tabla de novedades cargadas pasó a llamarse `rrhh_novedades_carga` para no pisar la de las novedades importadas; filtro por mes (por defecto el actual). Preguntas 26 a 29.
 - 2026-11-28: aprobación de extras rediseñada: solapa *Aprobar extras* (día por día o varios tildados, por persona o semana); se quitó el botón de aprobación en bloque y el de «Aprobar sus extras» del Resumen (se veía cortado).
+- 2026-11-28: pregunta 21 resuelta (todos con cuenta Microsoft). Preguntas 30 a 34 (escala de días, antigüedad reconocida, fecha de ingreso, historial). Nuevo `docs/mapa-rrhh.md` con las fuentes, las duplicaciones y el plan.
+- 2026-11-28: pregunta 35 (horas de feriado después de las 14:00).

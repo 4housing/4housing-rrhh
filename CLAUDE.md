@@ -24,3 +24,4 @@ Toda tabla con información usa `js/rrhh-tabla.js` (`RRHHTabla.crear`) y trae:
 - contador «N de M filas», «Limpiar filtros», y el total (pie) recalculado sobre lo filtrado,
 - exportar a Excel respetando filtros y orden.
 Una tabla nueva sin esto no se da por terminada.
+- **Que se vea sin desplazar (pedido de administración, vale para todo lo nuevo y lo que se toque):** las pantallas se usan en una tablet (≈ 820 px útiles con el menú). Las tablas tienen que entrar sin scroll horizontal siempre que se pueda: columnas angostas (`compacta: true` y `fijo: true` en `RRHHTabla`), títulos en dos líneas, nombres como «Apellido, Car.» (apellido + 3 letras del nombre, el completo en el cursor), fechas cortas («lun 02/11») y lo secundario en un ícono con cursor. Si igual hay que desplazar, las columnas que identifican (persona) van fijas (`sticky`) para no perder de quién se habla, y los botones de acción van **al inicio** de la fila, no al final.
