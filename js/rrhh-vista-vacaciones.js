@@ -95,7 +95,7 @@
     /* ---------------- tablas ---------------- */
     function botones(f) {
       if (!puedeEditar) return '';
-      const b = (a, t) => '<button type="button" class="minib" data-a="' + a + '" data-id="' + esc(f.id) + '">' + t + '</button> ';
+      const b = (a, t) => '<button type="button" class="btn-mini" data-a="' + a + '" data-id="' + esc(f.id) + '">' + t + '</button> ';
       let h = '';
       if (V.puedePasar(f, 'aprobado_jefe')) h += b('jefe', 'Aprobó el jefe');
       if (V.puedePasar(f, 'aprobado') && f.estado === 'aprobado_jefe') h += b('rrhh', 'Aprobar (RRHH)');
@@ -118,7 +118,7 @@
           { k: 'jefe', titulo: 'Aprobó el jefe', cls: 'izq', min: 130, texto: f => (f.jefe_nombre ? f.jefe_nombre + (f.jefe_fecha ? ' · ' + dmy(f.jefe_fecha) : '') : '') },
           { k: 'nov', titulo: 'Novedades', cls: 'izq', min: 110, texto: f => (f.novedades_generadas_en ? 'Generadas ' + dmy(f.novedades_generadas_en) : f.estado === 'aprobado' ? 'Falta generar' : '') },
           { k: 'obs', titulo: 'Observaciones', cls: 'izq', min: 180, texto: f => [f.observaciones, f.motivo_rechazo ? 'Rechazo: ' + f.motivo_rechazo : ''].filter(Boolean).join(' · ') },
-          { k: 'acc', titulo: '', cls: 'izq', min: 280, texto: () => '', html: botones }];
+          { k: 'acc', titulo: '', cls: 'izq', min: 380, anchoMin: 380, texto: () => '', html: botones }];
         est.cols = cols; est.grid = Tabla.crear({ el: $('va-tabla'), id: 'vacaciones-pedidos-v1', columnas: cols, esc, filaAttrs: f => (f.estado === 'aprobado' && !f.novedades_generadas_en ? 'style="background:#fbf6e6"' : ''),
           pie: rows => ['', '', '', '', 'TOTAL · ' + rows.length + ' pedidos', dec(rows.reduce((s, f) => s + Number(f.dias), 0)), '', '', '', '', '', ''] });
         est.grid.render(est.pedidos);

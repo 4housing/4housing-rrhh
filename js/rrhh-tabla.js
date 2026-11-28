@@ -6,7 +6,8 @@
      · autoajuste de todas las columnas la primera vez y con el botón «Ajustar columnas»
      · los anchos se recuerdan por tabla en este navegador (localStorage, opcional: si no se puede, se sigue sin recordar)
      · contador «N de M filas» y «Limpiar filtros»; el total (pie) se recalcula sobre lo que queda filtrado
-   Cada columna: { k, titulo, grupo?, tipo:'txt'|'n'|'p', cls?, sticky?, min?, valor(f)?, texto(f)?, html(f)? }
+   Cada columna: { k, titulo, grupo?, tipo:'txt'|'n'|'p', cls?, sticky?, min?, anchoMin?, valor(f)?, texto(f)?, html(f)? }
+     anchoMin = ancho que el autoajuste nunca achica (columnas de botones o casillas: su texto es vacío y no se puede medir)
      valor  = lo que se usa para ordenar · texto = lo que se muestra y se usa en el filtro · html = lo que se pinta
    La parte lógica (ordenar/filtrar) no toca el DOM y se prueba aparte (test/tabla.test.js).
    ========================================================================== */
@@ -88,7 +89,7 @@
       let w = Math.max(...lineasTitulo(c.titulo).map(t => medir(t, negrita, 20 + 44)));   // relleno + iconos de ordenar/filtrar; con título en dos líneas, la más larga
       for (const f of filas) w = Math.max(w, medir(textoDe(c, f), normal, 22));
       if (est.pieTextos && est.pieTextos[c.k]) w = Math.max(w, medir(est.pieTextos[c.k], '700 ' + tam + ' ' + fam, 34));    // la fila de totales va en negrita
-      return Math.max(ANCHO_MIN, Math.min(w, 520));
+      return Math.max(ANCHO_MIN, c.anchoMin || 0, Math.min(w, 520));      // anchoMin: columnas de botones o casillas, que no se miden por su texto
     }
     function ajustarTodas() {
       const filas = filtradas();

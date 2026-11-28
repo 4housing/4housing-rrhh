@@ -37,7 +37,7 @@
     const puedeEditar = PERM.editar.has('liquidacion');
     const hoy = new Date(), mesHoy = hoy.getFullYear() + '-' + pad(hoy.getMonth() + 1);
     const est = { mes: mesHoy, q: hoy.getDate() <= 15 ? '1' : '2', fichadas: [], novGuard: [], legajos: new Map(), horarios: new Map(), feriados: new Set(), nombres: new Map(), perfiles: new Map(), dias: new Map(), just: new Map(),
-      partes: [], filtro: 'decision', vista: 'partes', limExtras: (() => { try { return Number(localStorage.getItem('rrhh-fichadas-extras-altas')) || 30; } catch (e) { return 30; } })(), abierto: null, lectura: null, uid: null, grid: null, gridRes: null, resumen: [] };
+      partes: [], filtro: 'decision', vista: 'partes', limExtras: (() => { try { return Number(localStorage.getItem('rrhh-fichadas-extras-altas')) || 30; } catch (e) { return 30; } })(), abierto: null, sel: new Set(), extFiltro: 'pend', gridEx: null, lectura: null, uid: null, grid: null, gridRes: null, resumen: [] };
 
     $main.innerHTML = `
       <div class="card" id="fi-carga">
@@ -61,6 +61,7 @@
       </div>
       <div class="barra" id="fi-tabs"></div>
       <div id="fi-resumen"></div>
+      <div class="barra" id="fi-extrabar" style="display:none"></div>
       <div id="fi-tabla"><div class="empty">Cargando…</div></div>
       <div id="fi-panel"></div>
       <p class="nota" id="fi-nota"></p>`;
@@ -144,10 +145,10 @@
       return est.partes.filter(p => f === 'todos' || (f === 'decision' ? !p.revisado && p.clase !== 'ok' : f === 'revisar' ? !p.revisado && p.clase === 'revisar' : f === 'extra' ? !p.revisado && p.clase === 'extra' : p.revisado));
     }
     function pintarTabs() {
-      const pend = pendientes(), ex = pend.filter(p => p.clase === 'extra'), fer = soloFeriado();
-      $('fi-tabs').innerHTML = [['partes', 'Partes por día'], ['calendario', 'Calendario'], ['resumen', 'Resumen del período']].map(([k, t]) => '<button type="button" class="btn' + (est.vista === k ? '' : ' sec') + '" data-v="' + k + '">' + t + '</button>').join('')
+      const fer = soloFeriado();
+      $('fi-tabs').innerHTML = [['partes', 'Partes por día'], ['extras', 'Aprobar extras'], ['calendario', 'Calendario'], ['resumen', 'Resumen del período']].map(([k, t]) => '<button type="button" class="btn' + (est.vista === k ? '' : ' sec') + '" data-v="' + k + '">' + t + '</button>').join('')
         + '<span class="sp"></span>' + (est.vista === 'resumen' ? '<label style="flex-direction:row;align-items:center;gap:6px">Extras llamativas desde (h) <input type="number" min="0" step="1" id="fi-lim" value="' + est.limExtras + '" style="width:70px"></label>' : '')
-        + (puedeEditar && fer.length ? '<button type="button" class="btn sec" id="fi-bulk-fer" title="Los marca como vistos; no aprueba horas">Marcar como revisados los feriados trabajados (' + fer.length + ' días)</button>' : '') + (puedeEditar ? '<button type="button" class="btn sec" id="fi-bulk"' + (ex.length ? '' : ' disabled') + ' title="Aprueba las horas extra calculadas de los días que no tienen ninguna otra anormalidad">Aprobar en bloque las extras sin otras anormalidades (' + ex.length + ' días, ' + horasTxt(ex.reduce((s, p) => s + (p.pagado['EXTRA 50%'] || 0) + (p.pagado['EXTRA 100%'] || 0), 0)) + ' h)</button>' : '');
+        + (puedeEditar && fer.length ? '<button type="button" class="btn sec" id="fi-bulk-fer" title="Los marca como vistos; no aprueba horas">Marcar como revisados los feriados trabajados (' + fer.length + ' días)</button>' : '');
       $('fi-lbl-filtro').style.display = est.vista === 'partes' ? '' : 'none';
     }
     function pintar() {
@@ -156,7 +157,8 @@
         + pen.filter(p => p.clase === 'revisar').length + '</b> por revisar · <b>' + pen.filter(p => p.clase === 'extra').length + '</b> con extras por aprobar · <b>' + rev.length + '</b> ya revisados</div>';
       pintarTabs();
       est.abierto && est.vista === 'resumen' ? (est.abierto = null, $('fi-panel').innerHTML = '') : 0;
-      est.vista === 'partes' ? pintarPartes() : est.vista === 'calendario' ? pintarCalendario() : pintarResumen();
+      $('fi-extrabar').style.display = est.vista === 'extras' ? '' : 'none';
+      est.vista === 'partes' ? pintarPartes() : est.vista === 'extras' ? pintarExtras() : est.vista === 'calendario' ? pintarCalendario() : pintarResumen();
       if (est.abierto && est.vista !== 'resumen') abrir(est.abierto);
     }
     function pintarPartes() {
@@ -210,33 +212,99 @@
         { k: 'aprob', titulo: 'Extra\naprobada', tipo: 'n', texto: f => horasTxt(f.aprob50Min + f.aprob100Min), valor: f => f.aprob50Min + f.aprob100Min },
         Object.assign(cnt('extraPorAprobar'), { titulo: 'Días extra\npor aprobar' }), Object.assign(cnt('porRevisar'), { titulo: 'Días por\nrevisar' }), Object.assign(cnt('ausentesSinAviso'), { titulo: 'Ausentes\nsin aviso' }),
         Object.assign(cnt('justificados'), { titulo: 'Ausentes\njustificados' }), Object.assign(cnt('tardes'), { titulo: 'Llegadas\ntarde' }), Object.assign(cnt('fichadasUnicas'), { titulo: 'Fichadas\núnicas' }),
-        { k: 'llamativo', titulo: 'Llamativo', cls: 'izq', min: 220, texto: f => f.llamativo.join(' · '), valor: f => f.llamativo.join(' ') },
-        { k: 'accion', titulo: '', cls: 'izq', texto: () => '', html: f => (puedeEditar && f.extraPorAprobar ? '<button type="button" class="btn sec" data-aprobar="' + f.legajo + '">Aprobar sus extras</button>' : '') }];
+        { k: 'llamativo', titulo: 'Llamativo', cls: 'izq', min: 220, texto: f => f.llamativo.join(' · '), valor: f => f.llamativo.join(' ') }];
       cols[3].titulo = 'Días con\nfichadas';
-      est.columnas = cols.slice(0, -1);
-      est.gridRes = Tabla.crear({ el: $('fi-tabla'), id: 'fichadas-resumen-v3', columnas: cols, esc, filaAttrs: f => (f.llamativo.length ? 'style="background:#fbf6e6"' : ''),
+      est.columnas = cols;
+      est.gridRes = Tabla.crear({ el: $('fi-tabla'), id: 'fichadas-resumen-v4', columnas: cols, esc, filaAttrs: f => (f.llamativo.length ? 'style="background:#fbf6e6"' : ''),
         pie: rows => ['', 'TOTAL · ' + rows.length + ' personas', '', String(rows.reduce((s, f) => s + f.dias, 0)), horasTxt(rows.reduce((s, f) => s + f.normalMin, 0)), horasTxt(rows.reduce((s, f) => s + f.extra50Min, 0)), horasTxt(rows.reduce((s, f) => s + f.extra100Min, 0)),
-          horasTxt(rows.reduce((s, f) => s + f.aprob50Min + f.aprob100Min, 0)), String(rows.reduce((s, f) => s + f.extraPorAprobar, 0)), String(rows.reduce((s, f) => s + f.porRevisar, 0)), String(rows.reduce((s, f) => s + f.ausentesSinAviso, 0)), String(rows.reduce((s, f) => s + f.justificados, 0)), String(rows.reduce((s, f) => s + f.tardes, 0)), String(rows.reduce((s, f) => s + f.fichadasUnicas, 0)), '', ''] });
+          horasTxt(rows.reduce((s, f) => s + f.aprob50Min + f.aprob100Min, 0)), String(rows.reduce((s, f) => s + f.extraPorAprobar, 0)), String(rows.reduce((s, f) => s + f.porRevisar, 0)), String(rows.reduce((s, f) => s + f.ausentesSinAviso, 0)), String(rows.reduce((s, f) => s + f.justificados, 0)), String(rows.reduce((s, f) => s + f.tardes, 0)), String(rows.reduce((s, f) => s + f.fichadasUnicas, 0)), ''] });
       est.gridRes.render(est.resumen);
-      $('fi-nota').innerHTML = '<b>Resumen del período por persona.</b> Las filas amarillas tienen algo llamativo: más de ' + est.limExtras + ' h de extras (se cambia arriba), ausencias sin aviso, 3 o más llegadas tarde o fichadas por completar. «Aprobar sus extras» aprueba las extras calculadas de los días de esa persona que no tienen otras anormalidades.';
+      $('fi-nota').innerHTML = '<b>Resumen del período por persona.</b> Las filas amarillas tienen algo llamativo: más de ' + est.limExtras + ' h de extras (se cambia arriba), ausencias sin aviso, 3 o más llegadas tarde o fichadas por completar. Para aprobar horas extra día por día o semana por semana, usá la solapa «Aprobar extras».';
     }
 
     /* ---------------- aprobar en bloque ---------------- */
-    async function aprobarEnBloque(legajo) {
-      const dias = pendientes().filter(p => p.clase === 'extra' && (legajo == null || p.legajo === legajo));
+    /* ---------------- aprobar extras: día por día o semana por semana, persona por persona ---------------- */
+    const lunesDe = iso => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - (d.getUTCDay() + 6) % 7); return d.toISOString().slice(0, 10); };
+    const semanaTxt = iso => { const l = lunesDe(iso), d = new Date(l + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + 6); const f = x => x.split('-').reverse().slice(0, 2).join('/'); return f(l) + ' al ' + f(d.toISOString().slice(0, 10)); };
+    const calcMin = p => (p.pagado['EXTRA 50%'] || 0) + (p.pagado['EXTRA 100%'] || 0);
+    const apMin = p => (p.aprob50 || 0) + (p.aprob100 || 0);
+    const tieneExtras = p => calcMin(p) > 0 || apMin(p) > 0;
+    const estadoExtra = p => (!p.revisado ? 'Pendiente' : apMin(p) === 0 ? 'No aprobada' : apMin(p) < calcMin(p) ? 'Aprobada parcial' : 'Aprobada');
+    const ALERTAS = OTRAS.concat('revisar_feriado');
+    const alertaTxt = p => p.marcas.filter(m => ALERTAS.includes(m)).map(m => (m === 'ausente' && p.justificacion ? 'Ausente — ' + p.justificacion : MARCAS[m] || m)).join(' · ');
+    const filasExtras = () => est.partes.filter(tieneExtras).filter(p => est.extFiltro === 'todas' || (est.extFiltro === 'pend' ? !p.revisado : p.revisado))
+      .map(p => ({ ...p, semana: semanaTxt(p.fecha), semanaK: lunesDe(p.fecha), estadoExtra: estadoExtra(p), alerta: alertaTxt(p) }));
+    async function decidirExtras(dias, modo) {
       if (!dias.length) return;
-      const tot = dias.reduce((s, p) => s + (p.pagado['EXTRA 50%'] || 0) + (p.pagado['EXTRA 100%'] || 0), 0);
-      if (!window.confirm('Se van a aprobar las extras calculadas de ' + dias.length + ' días' + (legajo != null ? ' (legajo ' + legajo + ')' : '') + ': ' + horasTxt(tot) + ' h en total. ¿Aprobar?')) return;
+      const ahora = new Date().toISOString();
+      const filasDb = dias.map(p => {
+        const nota0 = (est.dias.get(p.id) || {}).nota || null, base = { legajo: p.legajo, fecha: p.fecha, revisado_por: est.uid, revisado_en: ahora };
+        if (modo === 'des') return { ...base, estado: 'pendiente', extra50_aprobada_min: null, extra100_aprobada_min: null, nota: nota0 };
+        const ok = modo === 'ap';
+        return { ...base, estado: 'revisado', extra50_aprobada_min: ok ? p.pagado['EXTRA 50%'] || 0 : 0, extra100_aprobada_min: ok ? p.pagado['EXTRA 100%'] || 0 : 0, nota: nota0 || (ok ? 'Extras aprobadas' : 'Extras no aprobadas') };
+      });
       try {
-        const ahora = new Date().toISOString(), filasDb = dias.map(p => ({ legajo: p.legajo, fecha: p.fecha, estado: 'revisado', extra50_aprobada_min: p.pagado['EXTRA 50%'] || 0, extra100_aprobada_min: p.pagado['EXTRA 100%'] || 0, nota: 'Aprobada en bloque', revisado_por: est.uid, revisado_en: ahora }));
         for (let i = 0; i < filasDb.length; i += 200) {
           const { data, error } = await sb.from('rrhh_partes_dia').upsert(filasDb.slice(i, i + 200), { onConflict: 'legajo,fecha' }).select();
           if (error) throw new Error(error.message);
           (data || []).forEach(d => est.dias.set(d.legajo + '|' + d.fecha, d));
         }
-        recalcular();
-      } catch (e) { alert('No se pudo aprobar: ' + e.message); }
+        dias.forEach(p => est.sel.delete(p.id)); recalcular();
+      } catch (e) { alert('No se pudo guardar: ' + e.message); }
     }
+    const selDias = () => est.partes.filter(p => est.sel.has(p.id));
+    function barraExtras() {
+      const vis = est.gridEx ? est.gridEx.filtradas() : [], sel = selDias(), selMin = sel.reduce((n, p) => n + calcMin(p), 0), pend = vis.filter(p => !p.revisado);
+      $('fi-extrabar').innerHTML = '<label>Mostrar<select id="fx-filtro"><option value="pend">Pendientes de decidir</option><option value="hechas">Ya decididas</option><option value="todas">Todas</option></select></label>'
+        + '<button type="button" class="btn sec" data-fx="vis" title="Tilda los días que están a la vista (respeta los filtros de la tabla: persona, semana, fecha…)">Tildar los ' + vis.length + ' visibles</button>'
+        + '<button type="button" class="btn sec" data-fx="visok" title="Tilda los visibles que solo tienen extras, sin ausencia, fichada única, llegada tarde, salida temprana ni feriado">Tildar los visibles sin otras alertas</button>'
+        + '<button type="button" class="btn sec" data-fx="nada"' + (sel.length ? '' : ' disabled') + '>Destildar todo</button><span class="sp"></span>'
+        + (puedeEditar ? '<button type="button" class="btn" data-fx="ap"' + (sel.length ? '' : ' disabled') + '>Aprobar los tildados (' + sel.length + (sel.length ? ' · ' + horasTxt(selMin) + ' h' : '') + ')</button>'
+          + '<button type="button" class="btn sec" data-fx="no"' + (sel.length ? '' : ' disabled') + '>No aprobar los tildados</button>' : '');
+      $('fx-filtro').value = est.extFiltro; void pend;
+    }
+    function pintarExtras() {
+      const num = (k, f) => ({ k, tipo: 'n', texto: p => horasTxt(f(p)), valor: f });
+      const cols = [
+        { k: 'sel', titulo: '', cls: 'izq', min: 40, anchoMin: 40, texto: p => (est.sel.has(p.id) ? 'tildado' : ''), valor: p => (est.sel.has(p.id) ? 0 : 1),
+          html: p => '<input type="checkbox" data-sel="' + esc(p.id) + '"' + (est.sel.has(p.id) ? ' checked' : '') + (puedeEditar ? '' : ' disabled') + ' aria-label="Tildar este día">' },
+        { k: 'semana', titulo: 'Semana', cls: 'izq', min: 100, texto: p => p.semana, valor: p => p.semanaK },
+        { k: 'persona', titulo: 'Persona', cls: 'izq', min: 190 },
+        { k: 'fecha', titulo: 'Fecha', cls: 'izq', min: 100, texto: p => p.dia + ' ' + p.fecha.split('-').reverse().join('/'), valor: p => p.fecha },
+        { k: 'horas', titulo: 'Fichadas', cls: 'izq', min: 130, texto: p => (p.horas || []).join(' · '), valor: p => (p.horas || []).join(' ') },
+        Object.assign(num('c50', p => p.pagado['EXTRA 50%'] || 0), { titulo: 'Calculada\n50 % (h)' }), Object.assign(num('c100', p => p.pagado['EXTRA 100%'] || 0), { titulo: 'Calculada\n100 % (h)' }),
+        Object.assign(num('a50', p => (p.revisado ? p.aprob50 || 0 : 0)), { titulo: 'Aprobada\n50 % (h)', texto: p => (p.revisado ? horasTxt(p.aprob50 || 0) || '0' : '') }),
+        Object.assign(num('a100', p => (p.revisado ? p.aprob100 || 0 : 0)), { titulo: 'Aprobada\n100 % (h)', texto: p => (p.revisado ? horasTxt(p.aprob100 || 0) || '0' : '') }),
+        { k: 'estadoExtra', titulo: 'Estado', cls: 'izq', min: 120 },
+        { k: 'alerta', titulo: 'Otras alertas', cls: 'izq', min: 200 },
+        { k: 'acc', titulo: '', cls: 'izq', min: 190, anchoMin: 200, texto: () => '', html: p => (!puedeEditar ? '' : p.revisado ? '<button type="button" class="btn-mini" data-ex="des" data-id="' + esc(p.id) + '">Deshacer</button>'
+          : '<button type="button" class="btn-mini" data-ex="ap" data-id="' + esc(p.id) + '">Aprobar</button> <button type="button" class="btn-mini" data-ex="no" data-id="' + esc(p.id) + '">No aprobar</button>') }];
+      est.columnas = cols.filter(c => c.titulo);
+      est.gridEx = Tabla.crear({ el: $('fi-tabla'), id: 'fichadas-extras-v1', columnas: cols, esc, filaAttrs: p => 'data-pk="' + esc(p.id) + '" style="cursor:pointer' + (p.revisado ? '' : p.alerta ? ';background:#fbf6e6' : ';background:#eef6fb') + '"',
+        pie: rows => ['', '', 'TOTAL · ' + rows.length + ' días', '', '', horasTxt(rows.reduce((n, p) => n + (p.pagado['EXTRA 50%'] || 0), 0)), horasTxt(rows.reduce((n, p) => n + (p.pagado['EXTRA 100%'] || 0), 0)),
+          horasTxt(rows.reduce((n, p) => n + (p.revisado ? p.aprob50 || 0 : 0), 0)), horasTxt(rows.reduce((n, p) => n + (p.revisado ? p.aprob100 || 0 : 0), 0)), '', '', ''] });
+      est.gridEx.render(filasExtras()); barraExtras();
+      $('fi-nota').innerHTML = '<b>Cómo se aprueba:</b> cada fila es un día de una persona con horas extra. <b>Aprobar</b> / <b>No aprobar</b> decide ese día. Para varios a la vez: filtrá por persona o por semana (▾ en el título), tildá los días y usá «Aprobar los tildados». '
+        + 'Para aprobar <b>solo una parte</b> de un día (por ejemplo 1 h de 2), tocá la fila: se abre el día y ahí escribís los minutos. Fondo celeste = solo extras; amarillo = además tiene otra alerta (mirala antes de aprobar). «No aprobar» deja registrado que se vio y no se paga; «Deshacer» lo vuelve a pendiente.';
+    }
+    $('fi-extrabar').addEventListener('change', ev => { if (ev.target.id === 'fx-filtro') { est.extFiltro = ev.target.value; if (est.vista === 'extras' && est.gridEx) { est.gridEx.render(filasExtras()); barraExtras(); } } });
+    $('fi-extrabar').addEventListener('click', ev => {
+      const b = ev.target.closest('button[data-fx]'); if (!b || !est.gridEx) return;
+      const vis = est.gridEx.filtradas(), k = b.dataset.fx;
+      if (k === 'vis') vis.forEach(p => est.sel.add(p.id));
+      else if (k === 'visok') vis.filter(p => !p.alerta).forEach(p => est.sel.add(p.id));
+      else if (k === 'nada') est.sel.clear();
+      else { const dias = selDias(), tot = dias.reduce((n, p) => n + calcMin(p), 0);
+        if (!dias.length) return;
+        if (!window.confirm((k === 'ap' ? 'Aprobar las extras calculadas de ' : 'NO aprobar las extras de ') + dias.length + ' día' + (dias.length === 1 ? '' : 's') + ' (' + horasTxt(tot) + ' h calculadas). ¿Seguir?')) return;
+        decidirExtras(dias, k); return; }
+      est.gridEx.render(filasExtras()); barraExtras();
+    });
+    $('fi-tabla').addEventListener('change', ev => {
+      const c = ev.target.closest('input[data-sel]'); if (!c) return;
+      if (c.checked) est.sel.add(c.dataset.sel); else est.sel.delete(c.dataset.sel);
+      barraExtras();
+    });
     async function marcarFeriados() {
       const dias = soloFeriado(); if (!dias.length) return;
       if (!window.confirm('Se van a marcar como revisados ' + dias.length + ' días trabajados en feriado. Esto NO aprueba horas: solo los marca como vistos. ¿Seguir?')) return;
@@ -258,12 +326,11 @@
     $('fi-tabs').addEventListener('click', ev => {
       const b = ev.target.closest('button'); if (!b) return;
       if (b.dataset.v) { est.vista = b.dataset.v; est.abierto = null; $('fi-panel').innerHTML = ''; pintar(); }
-      else if (b.id === 'fi-bulk') aprobarEnBloque(null);
       else if (b.id === 'fi-bulk-fer') marcarFeriados();
     });
     $('fi-tabla').addEventListener('click', ev => {
-      const ap = ev.target.closest('button[data-aprobar]'); if (ap) { aprobarEnBloque(Number(ap.dataset.aprobar)); return; }
-      const tr = ev.target.closest('tr[data-pk], td[data-pk]'); if (tr && !ev.target.closest('.th-t,.th-f,.minib')) abrir(tr.dataset.pk);
+      const ex = ev.target.closest('button[data-ex]'); if (ex) { const p = est.partes.find(x => x.id === ex.dataset.id); if (p) decidirExtras([p], ex.dataset.ex); return; }
+      const tr = ev.target.closest('tr[data-pk], td[data-pk]'); if (tr && !ev.target.closest('.th-t,.th-f,.btn-mini,input,button')) abrir(tr.dataset.pk);
     });
 
     /* ---------------- panel de corrección ---------------- */
@@ -394,9 +461,9 @@
           ...r.celdas.map(x => (x ? [x.c.texto, x.c.extras, x.c.menos].filter(Boolean).join(' ') : '')), r.resumen ? horasTxt(r.resumen.normalMin) : '', r.resumen ? horasTxt(r.resumen.extra50Min + r.resumen.extra100Min) : '']));
         const wbc = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wbc, XLSX.utils.aoa_to_sheet(aoa), 'Calendario'); XLSX.writeFile(wbc, 'calendario_fichadas.xlsx'); return;
       }
-      const g = est.vista === 'partes' ? est.grid : est.gridRes; if (!g) return; const fl = g.filtradas(), cols = est.columnas;
+      const g = est.vista === 'partes' ? est.grid : est.vista === 'extras' ? est.gridEx : est.gridRes; if (!g) return; const fl = g.filtradas(), cols = est.columnas;
       const aoa = [cols.map(c => String(c.titulo).replace(/\n/g, ' ')), ...fl.map(f => cols.map(c => { const v = c.texto ? c.texto(f) : f[c.k]; return v == null ? '' : v; }))];
-      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), est.vista === 'partes' ? 'Partes' : 'Resumen'); XLSX.writeFile(wb, est.vista === 'partes' ? 'partes_diarios.xlsx' : 'resumen_del_periodo.xlsx');
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), est.vista === 'partes' ? 'Partes' : est.vista === 'extras' ? 'Extras' : 'Resumen'); XLSX.writeFile(wb, est.vista === 'partes' ? 'partes_diarios.xlsx' : est.vista === 'extras' ? 'extras.xlsx' : 'resumen_del_periodo.xlsx');
     });
     $('fi-log').addEventListener('click', () => {
       const m = est.partes.filter(p => p.cambios.modificado);

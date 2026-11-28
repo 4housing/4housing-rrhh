@@ -93,7 +93,7 @@
         { k: 'observaciones', titulo: 'Observaciones', cls: 'izq', min: 200, texto: f => f.observaciones || '' },
         { k: 'origen', titulo: 'Origen', cls: 'izq', texto: f => (f.origen === 'fichadas' ? 'Desde Fichadas' : f.origen === 'vacaciones' ? 'Vacaciones' : 'Manual') },
         { k: 'estado', titulo: 'Estado', cls: 'izq', min: 130, texto: f => (f.exportado_en ? 'Exportada ' + dmy(f.exportado_en.slice(0, 10)) : 'Pendiente'), valor: f => (f.exportado_en ? 1 : 0) },
-        { k: 'acc', titulo: '', cls: 'izq', min: 70, texto: () => '', html: f => (puedeEditar && !f.exportado_en ? '<button type="button" class="minib" data-del="' + esc(f.id) + '">Borrar</button>' : '') }];
+        { k: 'acc', titulo: '', cls: 'izq', min: 80, anchoMin: 80, texto: () => '', html: f => (puedeEditar && !f.exportado_en ? '<button type="button" class="btn-mini" data-del="' + esc(f.id) + '">Borrar</button>' : '') }];
       est.grid = Tabla.crear({ el: $('nv-tabla'), id: 'novedades-v1', columnas: cols, esc,
         pie: rows => ['', '', '', 'TOTAL · ' + rows.length + ' renglones', '', '', String(rows.reduce((s, f) => s + Number(f.cantidad), 0)).replace('.', ','), rows.reduce((s, f) => s + Number(f.valor), 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), '', '', '', ''] });
       est.grid.render(visibles());
