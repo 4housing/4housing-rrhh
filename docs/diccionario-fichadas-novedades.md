@@ -121,6 +121,11 @@ Cada una dice por qué importa. Marcá la respuesta y la fecha cuando se resuelv
 | 33 | **Historial**: ¿desde qué año querés el registro histórico de vacaciones? ¿Se arma desde las novedades VACJOR / VACM ya importadas? | Evita volver a cargar el pasado. | |
 | 34 | **Qué ve cada empleado**: saldo, fecha de ingreso, días por año, proyectadas, tomadas, descontadas. ¿Algo más (y nada de importes ni datos de otras personas)? | Define la pantalla y lo que se expone. | |
 
+### Feriados trabajados (2026-11-28)
+| # | Duda | Por qué importa | Respuesta |
+|---|---|---|---|
+| 35 | **Horas trabajadas en un feriado después de las 14:00**: el horario de feriados de los operarios tiene un solo tramo (07:00 a 14:00, al 100 %, 7 h). Quien lo cubre cobra las 7 h completas, trabaje hasta las 14:22 o hasta las 16:45; lo que pasa de las 14:00 no tiene tramo y la app no lo paga (queda como «Fuera de horario», ej. 2 h 53 min). ¿Esas horas se pagan? ¿A qué porcentaje (50 % / 100 %)? ¿Es igual para todos los horarios, o solo operarios? ¿Y si entran antes de las 07:00? | Hoy todos aparecen con 7,00 h al 100 % aunque las salidas sean muy distintas. Si Delta las paga, la app está pagando de menos. Relacionada con la 1. | |
+
 ## 8. Registro de cambios del diccionario
 - 2026-11-27: primera versión (circuito, glosario, clasificación, reglas, pantallas, qué se guarda y 20 dudas pendientes). Novedades v1 publicada; las extras aprobadas quedaron afuera hasta resolver la duda 10.
 - 2026-11-27: vacaciones: decisiones tomadas (cada empleado entra; aprueba jefe y luego RRHH; cálculo de días a definir con RRHH) y preguntas 21 a 25.
@@ -128,3 +133,4 @@ Cada una dice por qué importa. Marcá la respuesta y la fecha cuando se resuelv
 - 2026-11-27: empresas (4H / 4H OC) en novedades, saldos y pedidos de vacaciones; la tabla de novedades cargadas pasó a llamarse `rrhh_novedades_carga` para no pisar la de las novedades importadas; filtro por mes (por defecto el actual). Preguntas 26 a 29.
 - 2026-11-28: aprobación de extras rediseñada: solapa *Aprobar extras* (día por día o varios tildados, por persona o semana); se quitó el botón de aprobación en bloque y el de «Aprobar sus extras» del Resumen (se veía cortado).
 - 2026-11-28: pregunta 21 resuelta (todos con cuenta Microsoft). Preguntas 30 a 34 (escala de días, antigüedad reconocida, fecha de ingreso, historial). Nuevo `docs/mapa-rrhh.md` con las fuentes, las duplicaciones y el plan.
+- 2026-11-28: pregunta 35 (horas de feriado después de las 14:00).
